@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="lib/jquery.js"></script>
+    <script src="lib/bodymovin.js"></script>
+    <script>
+
+    // data:
+    // ip = initial frame
+    // op = last frame
+    // fr = frame rate
+    // layer:
+    // ip, op, as above (frames in which layer is visible)
+    // ind = index, from 1 to #layers
+    // parent = index of parent layer (for relative pos/movement)
+    // ks = animation data
+    // ks:
+    // a = origin for rotations: [float, float, 0]
+    // p = position animation: [float, float, 0] or [{anim}, {anim}]
+    // r = rotation animation: float, or [{anim}, {anim}, {t:24}], or rarely [{path}, {t:24}]
+    // s = scale: [float, float, float], normally [1, 1, 1]
+    // o = opacity: 100
+    // anim:
+    // t = frame
+    // s = starting values (angle or pos)
+    // e = ending values (angle or pos)
+    // n = name?
+    // i, o = something that affects acceleration
+    // ti = ?
+    // to = ?
+
+    /**
+     * Reindex the layers of an animation so that it can be combined with another one.
+     */
+    function reindex(adata, base) {
+        var offset = base || adata.layers.length;
+        for (var l = 0; l < adata.layers.length; l++) {
+            var layer = adata.layers[l];
+            layer.ind += offset;
+            if (typeof layer.parent === 'number') {
+                layer.parent += offset;
+            }
+        }
+    }
+
+    /**
+     * Shift an animation in time.
+     */
+    function shift(adata, offset) {
+        adata.ip += offset;
+        adata.op += offset;
+        for (var l = 0; l < adata.layers.length; l++) {
+            var layer = adata.layers[l];
+            layer.ip += offset;
+            layer.op += offset;
+            for (var p = 0; p < layer.ks.p.length; p++) {
+                if (typeof layer.ks.p[p] === 'object') {
+                    layer.ks.p[p].t += offset;
+                }
+            }
+            for (var r = 0; r < layer.ks.r.length; r++) {
+                if (typeof layer.ks.r[r] === 'object') {
+                    layer.ks.r[r].t += offset;
+                }
+            }
+        }
+    }
+
+    $(function () {
+        $.when(
+            $.get('sit.json'),
+            $.get('sitting.json'),
+            $.get('standing.json')
+        ).then(function (sitAjax, sittingAjax, standingAjax) {
+            var sit = sitAjax[0];
+            var sitting = sittingAjax[0];
+            var standing = standingAjax[0];
+
+            var all = $.extend({}, sit);
+            reindex(sitting, 100);
+            shift(sitting, all.op);
+            all.layers = all.layers.concat(sitting.layers);
+            all.op = sitting.op;
+
+            var anim = bodymovin.loadAnimation({
+                wrapper: $('#target')[0],
+                animType: 'svg',
+                autoplay: false,
+                loop: false,
+                animationData: all
+            });
+            var state = 'sit';
+            anim.addEventListener('complete', function (e) {
+                if (state === 'sit') {
+                    state === 'sitting';
+                    anim.playSegments([sitting.ip, sitting.op], true);
+                    anim.play();
+                } else {
+                    // Repeat current segment.
+                    anim.play();
+                }
+            });
+            anim.playSegments([sit.ip, sit.op], true);
+            anim.play();
+        });
+    });
+    </script>
+</head>
+<body>
+<div id="target"></div>
+</body>
+</html>
