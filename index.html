@@ -44,6 +44,39 @@
     }
 
     /**
+     * Create a reverse copy of an animation.
+     */
+    function reverse(adata) {
+        adata = $.extend(true, {}, adata);
+        for (var l = 0; l < adata.layers.length; l++) {
+            var layer = adata.layers[l];
+            if (typeof layer.ks.p[0] === 'object') {
+                var ptimes = layer.ks.p.map(function (o) {return adata.op - o.t}).reverse();
+                layer.ks.p = layer.ks.p.reverse();
+                layer.ks.p.push(layer.ks.p.shift());
+                for (var p = 0; p < layer.ks.p.length - 1; p++) {
+                    var ptmp = layer.ks.p[p].e;
+                    layer.ks.p[p].e = layer.ks.p[p].s;
+                    layer.ks.p[p].s = ptmp;
+                    layer.ks.p[p].t = ptimes[p];
+                }
+            }
+            if (typeof layer.ks.r[0] === 'object') {
+                var rtimes = layer.ks.r.map(function (o) {return adata.op - o.t}).reverse();
+                layer.ks.r = layer.ks.r.reverse();
+                layer.ks.r.push(layer.ks.r.shift());
+                for (var r = 0; r < layer.ks.r.length; r++) {
+                    var rtmp = layer.ks.r[r].e;
+                    layer.ks.r[r].e = layer.ks.r[r].s;
+                    layer.ks.r[r].s = rtmp;
+                    layer.ks.r[r].t = rtimes[r];
+                }
+            }
+        }
+        return adata;
+    }
+
+    /**
      * Shift an animation in time.
      */
     function shift(adata, offset) {
@@ -66,6 +99,18 @@
         }
     }
 
+    function combine(dest, src) {
+        if (!dest.layers) {
+            $.extend(true, dest, src);
+        } else {
+            reindex(src, dest.layers.length);
+            shift(src, dest.op);
+            dest.layers = dest.layers.concat(src.layers);
+            dest.op = src.op;
+        }
+        return [src.ip, src.op];
+    }
+
     $(function () {
         $.when(
             $.get('sit.json'),
@@ -73,34 +118,45 @@
             $.get('standing.json')
         ).then(function (sitAjax, sittingAjax, standingAjax) {
             var sit = sitAjax[0];
+            var stand = reverse(sit);
             var sitting = sittingAjax[0];
             var standing = standingAjax[0];
 
-            var all = $.extend({}, sit);
-            reindex(sitting, 100);
-            shift(sitting, all.op);
-            all.layers = all.layers.concat(sitting.layers);
-            all.op = sitting.op;
+            var animationData = {};
+            var states = {
+                SIT: {
+                    seg: combine(animationData, sit),
+                    next: ['SITTING']
+                },
+                STAND: {
+                    seg: combine(animationData, stand),
+                    next: ['STANDING']
+                },
+                SITTING: {
+                    seg: combine(animationData, sitting),
+                    next: ['SITTING', 'SITTING', 'STAND']
+                },
+                STANDING: {
+                    seg: combine(animationData, standing),
+                    next: ['STANDING', 'STANDING', 'SIT']
+                }
+            };
+
+            var stateId = 'STANDING';
 
             var anim = bodymovin.loadAnimation({
                 wrapper: $('#target')[0],
                 animType: 'svg',
                 autoplay: false,
                 loop: false,
-                animationData: all
+                animationData: animationData
             });
-            var state = 'sit';
             anim.addEventListener('complete', function (e) {
-                if (state === 'sit') {
-                    state === 'sitting';
-                    anim.playSegments([sitting.ip, sitting.op], true);
-                    anim.play();
-                } else {
-                    // Repeat current segment.
-                    anim.play();
-                }
+                stateId = states[stateId].next[Math.floor(Math.random() * states[stateId].next.length)]; 
+                anim.playSegments(states[stateId].seg, true);
+                anim.play();
             });
-            anim.playSegments([sit.ip, sit.op], true);
+            anim.playSegments(states[stateId].seg, true);
             anim.play();
         });
     });
