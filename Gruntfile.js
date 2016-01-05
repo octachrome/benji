@@ -12,8 +12,10 @@ module.exports = function (grunt) {
                 cwd: 'node_modules',
                 src: [
                     'jquery/dist/jquery.js',
+                    'knockout/build/output/knockout-latest.js',
                     'bodymovin/build/player/bodymovin.js',
-                    'long/dist/long.js'
+                    'long/dist/long.js',
+                    'chance/chance.js'
                 ],
                 dest: 'lib'
             }

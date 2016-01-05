@@ -10,10 +10,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "bodymovin": "bodymovin/bodymovin#f104baef568e",
+    "chance": "^0.8.0",
     "express": "^4.13.3",
     "jquery": "^2.1.4",
-    "long": "^3.0.1",
-    "bodymovin": "bodymovin/bodymovin#f104baef568e"
+    "knockout": "^3.4.0",
+    "long": "^3.0.1"
   },
   "devDependencies": {
     "grunt": "^0.4.5",

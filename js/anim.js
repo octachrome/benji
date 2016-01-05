@@ -1,35 +1,3 @@
-var Long = dcodeIO.Long;
-var mul = new Long(0xDEECE66D, 0x5);
-var mask = new Long(0xFFFFFFFF, 0xFFFF);
-
-function gen(input) {
-    var seed = Long.fromNumber(input);
-    seed = seed.mul(mul).add(0xB).and(mask);
-    return seed.toNumber();
-}
-
-function dateSeed(date) {
-    date = date || new Date();
-    var seed = gen(gen(date.getFullYear()));
-    for (var i = 0; i < date.getMonth() * 33 + date.getDate(); i++) {
-        seed = gen(seed);
-    }
-    return seed;
-}
-
-/*
-for (var i = 1; i < 20; i++) {
-    console.log(dateSeed(new Date('2015-12-'+i)).toString(16));
-}
-*/
-/*
-var seed = 123;
-for (var i = 0; i < 20; i++) {
-    seed = gen(seed);
-    console.log(seed.toString(16));
-}
-*/
-
 // data:
 // ip = initial frame
 // op = last frame
@@ -136,7 +104,7 @@ function combine(dest, src) {
     return [src.ip, src.op];
 }
 
-$(function () {
+function run() {
     $.when(
         $.get('anim/sit.json'),
         $.get('anim/sitting.json'),
@@ -184,4 +152,4 @@ $(function () {
         anim.playSegments(states[stateId].seg, true);
         anim.play();
     });
-});
+}
