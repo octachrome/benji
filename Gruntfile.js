@@ -22,7 +22,7 @@ module.exports = function (grunt) {
         },
         exec: {
             ftp: {
-                cmd: 'ncftpput -u chrisbro -p "<%=FTP_PWD%>" -R thebrown.net public_html/anim-test index.html lib images js anim'
+                cmd: 'ncftpput -u chrisbro -p "<%=FTP_PWD%>" -R thebrown.net public_html/benji index.html lib images js anim'
             }
         }
     });

@@ -118,14 +118,14 @@
             <a href="#" data-bind="click: hideHelp">Close</a>
         </p>
         <p>
-            The script is written using <a href="http://www.copterlabs.com/json-what-it-is-how-it-works-how-to-use-it/">JSON</a>. A script is one or more animations. Each animation can be either the name of an After Effects animation: <code>"sit_down"</code>; or an array of animations, which will be played in sequence: <code>["sit_down", "sitting"]</code>; or an object with object with an <code>"anim"</code> property and some other properties that change its behaviour:
+            The script is written using <a href="http://www.copterlabs.com/json-what-it-is-how-it-works-how-to-use-it/">JSON</a>. A script is one or more animations. Each animation can be either the name of an After Effects animation: <code>"sit_down"</code>; or an array of animations, which will be played in sequence: <code>["sit_down", "sitting"]</code>; or an object with object with an <code>"anim"</code> property set to any kind of animation, and some other properties that change its behaviour:
             <ul>
                 <li><code>"repeat_random": 5</code>: repeat the animation approximately 5 times, with some random variation</li>
                 <li><code>"likelihood": 0.4</code>: play the animation 40% of the time, and skip it the other 60% of the time</li>
                 <li><code>"backdrop": "bedroom"</code>: change the backdrop image before playing the animation</li>
                 <li><code>"name": "get_up"</code>: name a section of the script so it can be referenced in future</li>
             </ul>
-            Lastly, an animation can be an object with a single property, <code>choice</code>, set to an array of animations, each of which has a likelyhood of being chosen. Only one of the choices will be played: <code>{"choice": ["likelihood": 0.2, "anim": "rare_option"}, {"anim": "common_option"}]}</code>. Any choices without an explicit likelihood will have the remaining probability split between them.
+            Lastly, an animation can be an object with a single property, <code>"choice"</code>, set to an array of animations, each of which has a likelihood of being chosen. Only one of the choices will be played: <code>{"choice": ["likelihood": 0.2, "anim": "rare_option"}, {"anim": "common_option"}]}</code>. Any choices without an explicit likelihood will have the remaining probability split between them.
         </p>
         <p>
             Animations be nested and combined together, e.g.:
