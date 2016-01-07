@@ -58,8 +58,8 @@ function buildScene(dateStr, json) {
             for (i = 0; i < count; i++) {
                 playAnim(anim.anim);
             }
-        } else if (typeof anim.sometimes === 'number') {
-            if (chance.bool({likelihood: anim.sometimes})) {
+        } else if (typeof anim.likelihood === 'number') {
+            if (chance.bool({likelihood: anim.likelihood * 100})) {
                 playAnim(anim.anim);
             }
         } else if (anim.parallel) {
@@ -68,8 +68,10 @@ function buildScene(dateStr, json) {
         } else if (anim.choice) {
             var remaining;
             var weights = anim.choice.map(function (a, idx) {
-                if (a.prob) {
-                    return a.prob;
+                if (a.likelihood) {
+                    var l = a.likelihood;
+                    delete a.likelihood;
+                    return l;
                 } else {
                     remaining = idx;
                     return 0;

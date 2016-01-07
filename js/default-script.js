@@ -1,12 +1,12 @@
-var scenes = [
+var defaultScript = [
 {
     name: "get_up",
-    background: "bedroom",
+    backdrop: "bedroom",
     // occurs: "mon-fri 7 00",
     anim: [
         "wake_up",
         {
-            repeat_random: 5,
+            repeat_random: 2,
             anim: "lie_in_bed"
         },
         "get_up"
@@ -14,72 +14,70 @@ var scenes = [
 },
 {
     name: "breakfast",
-    background: "kitchen",
+    backdrop: "kitchen",
     // occurs when get_up ends
     anim: {
-        parallel: [
+        choice: [
         {
-            choice: [
-            {
-                prob: 0.2,
-                anim: [
-                    "make_toast",
-                    {
-                        repeat_random: 10,
-                        anim: "eat_toast"
-                    }
-                ]
-            },
-            {
-                // default prob = 1-0.2 = 0.8
-                anim: [
-                    "make_cornflakes",
-                    {
-                        repeat_random: 5,
-
-/*                        repeat_random: {
-                            avg: 5,
-                            sd: 1   // default
-                        },
-*/                        anim: "eat_cornflakes"
-                    },
-                    {
-                        sometimes: 0.2,
-                        anim: "open_mail"
-                    },
-                    {
-                        repeat_random: 5,
-                        anim: "eat_cornflakes"
-                    }
-                ]
-            }
+            likelihood: 0.5,
+            anim: [
+                "make_toast",
+                {
+                    repeat_random: 2,
+                    anim: "eat_toast"
+                }
             ]
         },
         {
-            repeat: true,
-            anim: {
-                delay_random: 5,
-                anim: "train"
-            }
+            // default likelihood = 1-0.2 = 0.8
+            anim: [
+                "make_cornflakes",
+                {
+                    repeat_random: 1,
+
+/*                        repeat_random: {
+                        avg: 5,
+                        sd: 1   // default
+                    },
+*/                        anim: "eat_cornflakes"
+                },
+                {
+                    likelihood: 0.4,
+                    anim: "open_mail"
+                },
+                {
+                    repeat_random: 1,
+                    anim: "eat_cornflakes"
+                }
+            ]
         }
         ]
     }
+    /* todo: background
+    {
+        repeat: true,
+        anim: {
+            delay_random: 5,
+            anim: "train"
+        }
+    }
+    */
 },
 {
     name: "wash",
-    background: "bathroom",
+    backdrop: "bathroom",
     // occurs: {
     //     time: "mon-fri 7 30",
     //     spread: 5
     // },
     anim: {
-        repeat_random: 5,
+        repeat_random: 2,
         anim: "washing"
     }
 },
 {
     name: "journey_to_work",
-    background: "bus",
+    backdrop: "bus",
     // occurs: {
     //     time: "mon-fri 7 30",
     //     spread: 5
@@ -91,19 +89,26 @@ var scenes = [
 },
 {
     name: "work",
-    background: "office",
+    backdrop: "office",
     // occurs: {
     //     time: "mon-fri 7 30",
     //     spread: 5
     // },
     anim: {
-        repeat_random: 5,
-        anim: "typing"
+        repeat_random: 40,
+        anim: [
+        "typing",
+        {
+            likelihood: 0.2,
+            anim: "phone_call"
+        }
+        ]
+
     }
 },
 {
     name: "journey_home",
-    background: "bus",
+    backdrop: "bus",
     // occurs: {
     //     time: "mon-fri 7 30",
     //     spread: 5
@@ -115,7 +120,7 @@ var scenes = [
 },
 {
     name: "dinner",
-    background: "kitchen",
+    backdrop: "kitchen",
     // occurs: {
     //     time: "mon-fri 7 30",
     //     spread: 5
@@ -123,14 +128,14 @@ var scenes = [
     anim: [
     "making_dinner",
     {
-        repeat_random: 5,
+        repeat_random: 3,
         anim: "eating_dinner"
     }
     ]
 },
 {
     name: "tv",
-    background: "living_room",
+    backdrop: "living_room",
     // occurs: {
     //     time: "mon-fri 7 30",
     //     spread: 5
@@ -142,13 +147,13 @@ var scenes = [
 },
 {
     name: "sleep",
-    background: "bedroom",
+    backdrop: "bedroom",
     // occurs: {
     //     time: "mon-fri 7 30",
     //     spread: 5
     // },
     anim: {
-        repeat_random: 5,
+        repeat_random: 20,
         anim: "sleeping"
     }
 }
