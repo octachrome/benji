@@ -45,6 +45,10 @@ function buildScene(dateStr, json) {
         offset += 10;
     }
 
+    // todo: repeat_until
+    // todo: background events
+    // todo: dialog - auto-time
+    // todo: audio
     function playAnim(anim) {
         var i, count;
         if (Array.isArray(anim)) {
@@ -66,23 +70,21 @@ function buildScene(dateStr, json) {
             // todo
             playAnim(anim.parallel[0]);
         } else if (anim.choice) {
-            var remaining;
+            var remaining = [];
             var weights = anim.choice.map(function (a, idx) {
-                if (a.likelihood) {
-                    var l = a.likelihood;
-                    delete a.likelihood;
-                    return l;
+                if (a.weight) {
+                    return a.weight;
                 } else {
-                    remaining = idx;
+                    remaining.push(idx);
                     return 0;
                 }
             });
-            if (typeof remaining === 'number') {
-                var weight = 1 - weights.reduce(function (a, b) {
-                    return a + b;
-                });
-                weights[remaining] = weight;
-            }
+            var weight = 1 - weights.reduce(function (a, b) {
+                return a + b;
+            });
+            remaining.forEach(function (r) {
+                weights[r] = weight;
+            });
             playAnim(chance.weighted(anim.choice, weights));
         } else if (typeof anim.delay_random === 'number') {
             // todo
