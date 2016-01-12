@@ -55,6 +55,7 @@
             vm.results(results);
             vm.invalid(false);
         } catch (e) {
+            console.log(e);
             vm.invalid(true);
             return null;
         }

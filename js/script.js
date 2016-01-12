@@ -46,9 +46,17 @@ function buildScene(dateStr, json) {
         offset += 10;
     }
 
-    // todo: repeat_until
+    function parseTime(time) {
+        var match = time.match(/^([0-9]{1,2}):?([0-9]{2})$/);
+        var mins = parseInt(match[1]) * 60 + parseInt(match[2]);
+        // Offset is measured from 7am.
+        if (mins < 7*60) {
+            mins += 24*60;
+        }
+        return mins;
+    }
+
     // todo: background events
-    // todo: dialog - auto-time
     // todo: audio
     function playAnim(anim, dialog) {
         var i, count;
@@ -61,6 +69,11 @@ function buildScene(dateStr, json) {
         } else if (typeof anim.repeat_random === 'number') {
             count = chance.normal({mean: anim.repeat_random});
             for (i = 0; i < count; i++) {
+                playAnim(anim.anim, anim.dialog);
+            }
+        } else if (typeof anim.repeat_until === 'string') {
+            var until = parseTime(anim.repeat_until);
+            while (offset <= until) {
                 playAnim(anim.anim, anim.dialog);
             }
         } else if (typeof anim.likelihood === 'number') {
