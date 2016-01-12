@@ -19,7 +19,7 @@ var defaultScript = [
     anim: {
         choice: [
         {
-            likelihood: 0.5,
+            weight: 0.4,
             anim: [
                 "make_toast",
                 {
@@ -29,7 +29,7 @@ var defaultScript = [
             ]
         },
         {
-            // default likelihood = 1-0.2 = 0.8
+            // default weight = 1-0.4 = 0.6
             anim: [
                 "make_cornflakes",
                 {
@@ -95,13 +95,155 @@ var defaultScript = [
     //     spread: 5
     // },
     anim: {
-        repeat_random: 40,
+        repeat_random: 4,
         anim: [
-        "typing",
-        {
-            likelihood: 0.2,
-            anim: "phone_call"
-        }
+            {
+                repeat_random: 10,
+                anim: "typing"
+            },
+            {
+                likelihood: 0.2,
+                anim: {
+                    name: "phone_call",
+                    anim: [
+                        "phone_rings",
+                        {
+                            choice: [
+                                {
+                                    anim: "phone_talk",
+                                    dialog: "Hi!"
+                                },
+                                {
+                                    anim: "phone_talk",
+                                    dialog: "Hello."
+                                }
+                            ]
+                        },
+                        {
+                            choice: [
+                                {
+                                    anim: "phone_talk",
+                                    dialog: "How can I help you?",
+                                },
+                                {
+                                    anim: "phone_talk",
+                                    dialog: "How can I help?"
+                                }
+                            ]
+                        },
+                        "phone_listen",
+                        {
+                            choice: [
+                                {
+                                    weight: 0.1,
+                                    name: "rare_call",
+                                    anim: [
+                                        {
+                                            choice: [
+                                                {
+                                                    anim: "phone_talk",
+                                                    dialog: "I'm afraid that's not a cup holder. It's for DVDs and CDs."
+                                                },
+                                                {
+                                                    anim: "phone_talk",
+                                                    dialog: "I'm not going to tell you what I'm wearing."
+                                                }
+                                            ]
+                                        },
+                                        "phone_listen",
+                                        {
+                                            choice: [
+                                                {
+                                                    anim: "phone_talk",
+                                                    dialog: "Goodbye."
+                                                },
+                                                {
+                                                    anim: "phone_talk",
+                                                    dialog: "I'm going to terminate the call now, sir."
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    name: "common_call",
+                                    anim: [
+                                        "phone_listen",
+                                        {
+                                            repeat_random: 2,
+                                            anim: [
+                                                {
+                                                    choice: [
+                                                        {
+                                                            anim: "phone_talk",
+                                                            dialog: "Uh huh."
+                                                        },
+                                                        {
+                                                            anim: "phone_talk",
+                                                            dialog: "Yes."
+                                                        }
+                                                    ]
+                                                },
+                                                "phone_listen",
+                                                {
+                                                    choice: [
+                                                        {
+                                                            anim: "phone_talk",
+                                                            dialog: "Have you tried turning it off and on again?"
+                                                        },
+                                                        {
+                                                            anim: "phone_talk",
+                                                            dialog: "Is your printer plugged in at the mains?"
+                                                        }
+                                                    ]
+                                                },
+                                                "phone_listen",
+                                                {
+                                                    choice: [
+                                                        {
+                                                            anim: "phone_talk",
+                                                            dialog: "That's it!"
+                                                        },
+                                                        {
+                                                            anim: "phone_talk",
+                                                            dialog: "Right."
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        "phone_listen",
+                                        {
+                                            choice: [
+                                                {
+                                                    anim: "phone_talk",
+                                                    dialog: "I'm glad I could be of help."
+                                                },
+                                                {
+                                                    anim: "phone_talk",
+                                                    dialog: "No problem. Thanks for your call."
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            choice: [
+                                                {
+                                                    anim: "phone_talk",
+                                                    dialog: "Goodbye."
+                                                },
+                                                {
+                                                    anim: "phone_talk",
+                                                    dialog: "Bye."
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
         ]
 
     }

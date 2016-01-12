@@ -35,12 +35,13 @@ function buildScene(dateStr, json) {
 
     return events;
 
-    function playSimpleAnim(anim) {
+    function playSimpleAnim(anim, dialog) {
         var timestamp = new Date(date.getTime() + offset * 60 * 1000);
         events.push({
             timestamp: timestamp,
             time: timestamp.toTimeString().substr(0, 5),
-            anim: anim
+            anim: anim,
+            dialog: dialog
         });
         offset += 10;
     }
@@ -49,22 +50,22 @@ function buildScene(dateStr, json) {
     // todo: background events
     // todo: dialog - auto-time
     // todo: audio
-    function playAnim(anim) {
+    function playAnim(anim, dialog) {
         var i, count;
         if (Array.isArray(anim)) {
             for (i = 0; i < anim.length; i++) {
                 playAnim(anim[i]);
             }
         } else if (typeof anim === 'string') {
-            playSimpleAnim(anim);
+            playSimpleAnim(anim, dialog);
         } else if (typeof anim.repeat_random === 'number') {
             count = chance.normal({mean: anim.repeat_random});
             for (i = 0; i < count; i++) {
-                playAnim(anim.anim);
+                playAnim(anim.anim, anim.dialog);
             }
         } else if (typeof anim.likelihood === 'number') {
             if (chance.bool({likelihood: anim.likelihood * 100})) {
-                playAnim(anim.anim);
+                playAnim(anim.anim, anim.dialog);
             }
         } else if (anim.parallel) {
             // todo
@@ -85,11 +86,11 @@ function buildScene(dateStr, json) {
             remaining.forEach(function (r) {
                 weights[r] = weight;
             });
-            playAnim(chance.weighted(anim.choice, weights));
+            playAnim(chance.weighted(anim.choice, weights), anim.dialog);
         } else if (typeof anim.delay_random === 'number') {
             // todo
         } else if (anim.anim) {
-            playAnim(anim.anim);
+            playAnim(anim.anim, anim.dialog);
         } else {
             console.log('Unknown anim type:');
             console.log(anim);

@@ -29,7 +29,7 @@
     }
 
     var vm = {
-        date: ko.observable('2016-01-01'),
+        date: ko.observable('2016-01-02'),
         script: ko.observable(localStorage.getItem('scenes')),
         results: ko.observableArray(),
         help: ko.observable(false),
@@ -126,7 +126,9 @@
             </div>
             <div class="grow scroll pad">
                 <div data-bind="foreach: results">
-                    <span data-bind="text: time"></span> <span data-bind="text: anim"></span><br/>
+                    <span data-bind="text: time"></span> <span data-bind="text: anim"></span>
+                    <span data-bind="visible: dialog"> (<span data-bind="text: dialog"></span>)</span>
+                    <br/>
                 </div>
             </div>
         </div>
