@@ -56,6 +56,24 @@ function buildScene(dateStr, json) {
         return mins;
     }
 
+    function defaultSpread(c) {
+        if (c === 0) {
+            return 1;
+        } else {
+            var l = Math.log(c / 4);
+            return Math.max(1, Math.ceil(l));
+        }
+    }
+    function binom(x, spread) {
+        if (typeof spread !== 'number') {
+            spread = defaultSpread(x);
+        }
+        for (var i = 0; i < spread * 2; i++) {
+            x += chance.pick([-0.5, 0.5]);
+        }
+        return Math.max(0, x);
+    }
+
     // todo: background events
     // todo: audio
     function playAnim(anim, dialog) {
@@ -67,7 +85,7 @@ function buildScene(dateStr, json) {
         } else if (typeof anim === 'string') {
             playSimpleAnim(anim, dialog);
         } else if (typeof anim.repeat_random === 'number') {
-            count = chance.normal({mean: anim.repeat_random});
+            count = binom(anim.repeat_random, anim.spread);
             for (i = 0; i < count; i++) {
                 playAnim(anim.anim, anim.dialog);
             }
