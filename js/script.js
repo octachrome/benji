@@ -111,13 +111,13 @@ SceneBuilder.prototype.playAnim = function(anim, dialog) {
         var remaining = [];
         var weights = anim.choice.map(function (a, idx) {
             if (a.weight) {
-                return a.weight;
+                return a.weight * 100;
             } else {
                 remaining.push(idx);
                 return 0;
             }
         });
-        var weight = 1 - weights.reduce(function (a, b) {
+        var weight = 100 - weights.reduce(function (a, b) {
             return a + b;
         });
         remaining.forEach(function (r) {
@@ -125,7 +125,7 @@ SceneBuilder.prototype.playAnim = function(anim, dialog) {
         });
         this.playAnim(this.chance.weighted(anim.choice, weights), anim.dialog);
     } else if (anim.background === true) {
-
+        // todo
     } else if (typeof anim.delay_random === 'number') {
         // todo
     } else if (anim.anim) {
