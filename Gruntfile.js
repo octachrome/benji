@@ -21,12 +21,16 @@ module.exports = function (grunt) {
             }
         },
         exec: {
-            ftp: {
+            'ftp': {
+                cmd: 'ncftpput -u chrisbro -p "<%=FTP_PWD%>" -R thebrown.net public_html/benji index.html js'
+            },
+            'ftp-all': {
                 cmd: 'ncftpput -u chrisbro -p "<%=FTP_PWD%>" -R thebrown.net public_html/benji index.html lib images js anim'
             }
         }
     });
 
     grunt.registerTask('deploy', ['copy:lib', 'exec:ftp']);
+    grunt.registerTask('deploy-all', ['copy:lib', 'exec:ftp-all']);
     grunt.registerTask('default', ['copy:lib']);
 };
