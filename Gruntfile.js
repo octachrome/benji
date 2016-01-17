@@ -22,10 +22,10 @@ module.exports = function (grunt) {
         },
         exec: {
             'ftp': {
-                cmd: 'ncftpput -u chrisbro -p "<%=FTP_PWD%>" -R thebrown.net public_html/benji index.html js'
+                cmd: 'ncftpput -u chrisbro -p "<%=FTP_PWD%>" -R thebrown.net public_html/benji index.html bm.html js'
             },
             'ftp-all': {
-                cmd: 'ncftpput -u chrisbro -p "<%=FTP_PWD%>" -R thebrown.net public_html/benji index.html lib images js anim'
+                cmd: 'ncftpput -u chrisbro -p "<%=FTP_PWD%>" -R thebrown.net public_html/benji index.html bm.html lib images js anim'
             }
         }
     });
