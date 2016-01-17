@@ -157,6 +157,16 @@
         return [src.ip, src.op];
     }
 
+    function extendLayers(layers, ip, op) {
+        if (layers) {
+            for (var l = 0; l < layers.length; l++) {
+                var layer = layers[l];
+                layer.ip = ip;
+                layer.op = op;
+            }
+        }
+    }
+
     function fetchAnims(anims) {
         return $.when.apply($, anims.map(function (name) {
             return $.get('anim/' + name + '.json');
@@ -184,7 +194,7 @@
             // 'hangUpPhone',       // just a phone that appears and disappears
             // 'masktest-benji',
             // 'masktest-sofa',
-            // 'officeBackdrop',
+            'officeBackdrop',
             // 'phoneOnHandset',    // just a phone
             // 'sit',
             // 'sitting',
@@ -194,12 +204,8 @@
             'waiting'
             ]).then(function (anims) {
 
-            // defaults
-            // anims.waiting.ip = 0;
-            // anims.waiting.op = 75;
-            // anims.waiting.layers[1].ip = -5;
-            // anims.waiting.layers[1].op = 245;
-            // anims.waiting.layers[1].st = -5;
+            var officeBackdrop = anims.officeBackdrop;
+            delete anims.officeBackdrop;
 
             var animationData = {};
             var keys = Object.keys(anims);
@@ -207,6 +213,10 @@
             keys.forEach(function (key) {
                 segments[key] = combine(animationData, anims[key]);
             });
+
+            extendLayers(officeBackdrop.layers, animationData.ip, animationData.op);
+            reindex(officeBackdrop);
+            animationData.layers = animationData.layers.concat(officeBackdrop.layers);
 
             var anim = bodymovin.loadAnimation({
                 wrapper: $('#target')[0],
