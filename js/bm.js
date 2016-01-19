@@ -190,6 +190,7 @@ fetchAnims([
     'type',
     'waiting'
 ]).then(function (anims) {
+    anims.phone_listen = anims.talkOnPhone;
     var officeBackdrop = anims.officeBackdrop;
     delete anims.officeBackdrop;
 
