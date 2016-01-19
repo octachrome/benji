@@ -1,7 +1,9 @@
+var storagekey = 'scenes1';
+
 var vm = {
     activeTab: ko.observable(null),
     date: ko.observable('2016-01-02'),
-    script: ko.observable(localStorage.getItem('scenes')),
+    script: ko.observable(localStorage.getItem(storagekey)),
     results: ko.observableArray(),
     invalid: ko.observable(false),
     animation: ko.observable(null),
@@ -10,7 +12,7 @@ var vm = {
     dialog: ko.observable('')
 };
 vm.reset = function () {
-    localStorage.removeItem('script');
+    localStorage.removeItem(storagekey);
     vm.script(JSON.stringify(defaultScript, null, 2));
 };
 if (!vm.script()) {
@@ -19,7 +21,7 @@ if (!vm.script()) {
 ko.computed(function () {
     try {
         var results = buildScene(vm.date(), vm.script());
-        localStorage.setItem('scenes', vm.script());
+        localStorage.setItem(storagekey, vm.script());
         vm.results(results);
         vm.invalid(false);
     } catch (e) {
