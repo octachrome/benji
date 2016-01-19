@@ -1,4 +1,10 @@
 var defaultScript = [
-  'answerPhone',
-  'waiting',
+  {
+    "repeat_random": 10,
+    "anim": "answerPhone"
+  },
+  {
+    "repeat_random": 3,
+    "anim": "waiting"
+  }
 ];

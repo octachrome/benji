@@ -108,7 +108,7 @@
     <div class="sidebar scroll" data-bind="click: ignoreClick, visible: activeTab() === 'output'">
         <div class="margin">
             <div data-bind="foreach: results">
-                <span data-bind="text: time"></span> <span data-bind="text: anim"></span>
+                <a href="#" data-bind="text: time, click: resetAnimation.bind(null, $index())"></a> <span data-bind="text: anim"></span>
                 <span data-bind="visible: dialog"> (<span data-bind="text: dialog"></span>)</span>
                 <br/>
             </div>

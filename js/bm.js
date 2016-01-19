@@ -245,13 +245,13 @@ function nextAnimEvent() {
     }
 }
 
-function resetAnimation() {
+function resetAnimation(evt) {
     var anim = vm.animation();
     if (anim) {
         anim.stop();
     }
 
-    nextEvent = 0;
+    nextEvent = evt || 0;
     nextAnimEvent();
 }
 
