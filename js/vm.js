@@ -6,7 +6,8 @@ var vm = {
     invalid: ko.observable(false),
     animation: ko.observable(null),
     segments: ko.observable(null),
-    nowPlaying: ko.observable('')
+    nowPlaying: ko.observable(''),
+    dialog: ko.observable('')
 };
 vm.reset = function () {
     localStorage.removeItem('script');

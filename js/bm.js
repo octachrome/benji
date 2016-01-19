@@ -227,7 +227,6 @@ function nextAnimEvent() {
     var events = vm.results();
     var segments = vm.segments();
 
-    console.log(nextEvent);
     if (nextEvent >= events.length) {
         nextEvent = 0;
     }
@@ -236,12 +235,13 @@ function nextAnimEvent() {
 
     var key = evt.anim;
     vm.nowPlaying(key);
+    vm.dialog(evt.dialog || '');
     if (segments[key]) {
         anim.playSegments(segments[key], true);
         anim.play();
     } else {
         console.error('Unknown animation: ' + key);
-        setTimeout(nextAnimEvent, 1000);
+        setTimeout(nextAnimEvent, 2000);
     }
 }
 

@@ -1,10 +1,12 @@
 var defaultScript = [
   {
     "repeat_random": 10,
-    "anim": "answerPhone"
+    "anim": "answerPhone",
+    "dialog": "Hello?"
   },
   {
     "repeat_random": 3,
-    "anim": "waiting"
+    "anim": "waiting",
+    "dialog": "Hmm..."
   }
 ];

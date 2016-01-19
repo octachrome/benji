@@ -89,6 +89,14 @@
         left: 40px;
         bottom: 10px;
     }
+    div.dialog {
+        position: absolute;
+        z-index: 1;
+        left: 40px;
+        bottom: 100px;
+        font-size: 20pt;
+        font-weight: bold;
+    }
     </style>
 </head>
 <body data-bind="click: closeTabs">
@@ -156,6 +164,7 @@
         </div>
     </div>
     <div class="now-playing" data-bind="text: nowPlaying"></div>
+    <div class="dialog" data-bind="text: dialog"></div>
     <div class="main">
         <div id="target"></div>
     </div>
