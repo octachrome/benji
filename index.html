@@ -9,44 +9,8 @@
     <script src="js/anim.js"></script>
     <script src="js/default-script.js"></script>
     <script src="js/script.js"></script>
-    <script>
-    var vm = {
-        date: ko.observable('2016-01-02'),
-        script: ko.observable(localStorage.getItem('scenes')),
-        results: ko.observableArray(),
-        help: ko.observable(false),
-        invalid: ko.observable(false)
-    };
-    vm.reset = function () {
-        localStorage.removeItem('script');
-        vm.script(JSON.stringify(defaultScript, null, 2));
-    };
-    vm.showHelp = function () {
-        vm.help(true);
-    };
-    vm.hideHelp = function () {
-        vm.help(false);
-    };
-    if (!vm.script()) {
-        vm.reset();
-    }
-    ko.computed(function () {
-        try {
-            var results = buildScene(vm.date(), vm.script());
-            localStorage.setItem('scenes', vm.script());
-            vm.results(results);
-            vm.invalid(false);
-        } catch (e) {
-            console.log(e);
-            vm.invalid(true);
-            return null;
-        }
-    });
-
-    $(function () {
-        ko.applyBindings(vm);
-    });
-    </script>
+    <script src="js/vm.js"></script>
+    <script src="js/bm.js"></script>
     <style>
     body, html {
         width: 100%;
@@ -54,31 +18,42 @@
         padding: 0;
         margin: 0;
     }
-    .container {
-        width: 100%;
+    div.tabbar {
+        position: absolute;
+        width: 30px;
+        height: 100%;
+        background: #ddd;
+        border-right: 1px solid #bbb;
+    }
+    div.main {
+        margin-left: 30px;
+        overflow: hidden;
         height: 100%;
     }
-    .vbox, .hbox {
-        display: flex;
+    div.tab {
+        transform: rotate(90deg);
+        margin-top: 42px;
+        margin-left: -22px;
+        width: 73px;
+        height: 25px;
+        padding-top: 6px;
+        text-align: center;
+        cursor: pointer;
     }
-    .vbox {
-        flex-direction: column;
+    div.tab:hover {
+        background: white;
     }
-    .hbox {
-        flex-direction: row;
+    div.tab:first-child {
+        margin-top: 21px;
     }
-    .pad {
-        padding: 10px;
-    }
-    .grow {
-        flex: 1;
-        align-items: stretch;
-    }
-    .scroll {
-        overflow: scroll;
-    }
-    textarea {
-        resize: none;
+    div.sidebar {
+        position: absolute;
+        width: 40%;
+        height: 100%;
+        left: 31px;
+        background: white;
+        border-right: 1px solid #bbb;
+        z-index: 2;
     }
     code, pre {
         background: #eee;
@@ -89,50 +64,71 @@
         margin: 0;
         margin-bottom: 10px;
     }
-    .invalid {
-        color: white;
-        background: #f44;
+    .vbox, .hbox {
+        display: flex;
+    }
+    .vbox {
+        flex-direction: column;
+    }
+    .hbox {
+        flex-direction: row;
+    }
+    .margin {
+        margin: 5px;
+    }
+    .grow {
+        flex: 1;
+        align-items: stretch;
+    }
+    .scroll {
+        overflow-y: scroll;
+    }
+    div.now-playing {
+        position: absolute;
+        z-index: 1;
+        left: 40px;
+        bottom: 10px;
     }
     </style>
 </head>
-<body>
-    <div class="vbox container" data-bind="visible: !help()">
-        <div class="grow hbox">
-            <div class="grow vbox">
-                <div class="pad">
-                    Enter a date <input data-bind="textinput: date"> and enter a script below.
-                    <a href="#" data-bind="click: reset">Reset</a>
-                    <a href="#" data-bind="click: showHelp">Help</a>
-                    <span class="invalid" data-bind="visible: invalid">INVALID</span>
-                </div>
-                <textarea class="grow pad" data-bind="textinput: script"></textarea>
-            </div>
-            <div class="grow scroll pad">
-                <div data-bind="foreach: results">
-                    <span data-bind="text: time"></span> <span data-bind="text: anim"></span>
-                    <span data-bind="visible: dialog"> (<span data-bind="text: dialog"></span>)</span>
-                    <br/>
-                </div>
+<body data-bind="click: closeTabs">
+    <div class="tabbar">
+        <div class="tab" data-bind="click: toggleTab.bind(null, 'script')">Script</div>
+        <div class="tab" data-bind="click: toggleTab.bind(null, 'output')">Output</div>
+        <div class="tab" data-bind="click: toggleTab.bind(null, 'help')">Help</div>
+    </div>
+    <div class="sidebar vbox" data-bind="click: ignoreClick, visible: activeTab() === 'script'">
+        <div class="margin">
+            Enter a date <input data-bind="textinput: date"> and enter a script below.
+            <a href="#" data-bind="click: reset">Reset</a>
+            <span class="invalid" data-bind="visible: invalid">INVALID</span>
+        </div>
+        <textarea class="grow margin" data-bind="textinput: script"></textarea>
+    </div>
+    <div class="sidebar scroll" data-bind="click: ignoreClick, visible: activeTab() === 'output'">
+        <div class="margin">
+            <div data-bind="foreach: results">
+                <span data-bind="text: time"></span> <span data-bind="text: anim"></span>
+                <span data-bind="visible: dialog"> (<span data-bind="text: dialog"></span>)</span>
+                <br/>
             </div>
         </div>
     </div>
-    <div class="pad" data-bind="visible: help">
-        <p>
-            <a href="#" data-bind="click: hideHelp">Close</a>
-        </p>
-        <p>
-            The script is written using <a href="http://www.copterlabs.com/json-what-it-is-how-it-works-how-to-use-it/">JSON</a>. A script is one or more animations. Each animation can be either the name of an After Effects animation: <code>"sit_down"</code>; or an array of animations, which will be played in sequence: <code>["sit_down", "sitting"]</code>; or an object with object with an <code>"anim"</code> property set to any kind of animation, and some other properties that change its behaviour:
-            <ul>
-                <li><code>"repeat_random": 5</code>: repeat the animation approximately 5 times, with some random variation</li>
-                <li><code>"likelihood": 0.4</code>: play the animation 40% of the time, and skip it the other 60% of the time</li>
-                <li><code>"backdrop": "bedroom"</code>: change the backdrop image before playing the animation</li>
-                <li><code>"name": "get_up"</code>: name a section of the script so it can be referenced in future</li>
-            </ul>
-            Lastly, an animation can be an object with a single property, <code>"choice"</code>, set to an array of animations, each of which has a likelihood of being chosen. Only one of the choices will be played: <code>{"choice": ["likelihood": 0.2, "anim": "rare_option"}, {"anim": "common_option"}]}</code>. Any choices without an explicit likelihood will have the remaining probability split between them.
-        </p>
-        <p>
-            Animations be nested and combined together, e.g.:
-            <pre>
+    <div class="sidebar scroll pad" data-bind="click: ignoreClick, visible: activeTab() === 'help'">
+        <div class="margin">
+            <p>
+                The script is written using <a href="http://www.copterlabs.com/json-what-it-is-how-it-works-how-to-use-it/">JSON</a>. A script is one or more animations. Each animation can be either the name of an After Effects animation: <code>"sit_down"</code>; or an array of animations, which will be played in sequence: <code>["sit_down", "sitting"]</code>; or an object with object with an <code>"anim"</code> property set to any kind of animation, and some other properties that change its behaviour:
+                <ul>
+                    <li><code>"repeat_random": 5</code>: repeat the animation approximately 5 times, with some random variation</li>
+                    <li><code>"likelihood": 0.4</code>: play the animation 40% of the time, and skip it the other 60% of the time</li>
+                    <li><code>"backdrop": "bedroom"</code>: change the backdrop image before playing the animation</li>
+                    <li><code>"name": "get_up"</code>: name a section of the script so it can be referenced in future</li>
+                </ul>
+                Lastly, an animation can be an object with a single property, <code>"choice"</code>, set to an array of animations, each of which has a likelihood of being chosen. Only one of the choices will be played: <code>{"choice": ["likelihood": 0.2, "anim": "rare_option"}, {"anim": "common_option"}]}</code>. Any choices without an explicit likelihood will have the remaining probability split between them.
+            </p>
+            <p>
+                Animations be nested and combined together, e.g.:
+                <pre>
 [
     "first_in_sequence",
     "second_in_sequence",
@@ -155,9 +151,13 @@
         "repeat_random": 10,
         "anim": "fourth_repeated_approx_ten_times"
     }
-]
-            </pre>
-        </p>
+]</pre>
+            </p>
+        </div>
+    </div>
+    <div class="now-playing" data-bind="text: nowPlaying"></div>
+    <div class="main">
+        <div id="target"></div>
     </div>
 </body>
 </html>
