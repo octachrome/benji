@@ -160,6 +160,19 @@ function extendLayers(layers, ip, op) {
     }
 }
 
+function animLength(name) {
+    var anim = vm.animation();
+    var segments = vm.segments();
+    if (anim && segments && segments[name]) {
+        var segment = segments[name];
+        var frames = segment[1] - segment[0];
+        return Math.floor(1000 * frames / anim.frameRate);
+    } else {
+        // 3 seconds for unknown animation.
+        return 3000;
+    }
+}
+
 function fetchAnims(anims) {
     return $.when.apply($, anims.map(function (name) {
         return $.get('anim/' + name + '.json');

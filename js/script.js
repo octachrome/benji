@@ -20,8 +20,8 @@ function dateSeed(date) {
 }
 
 function SceneBuilder(chance) {
-    // 7am
-    this.offset = 7 * 60;
+    // 7am in millis
+    this.offset = ms('7 hours');
     this.chance = chance;
     this.events = [];
 }
@@ -50,17 +50,17 @@ function parseTime(time) {
     if (mins < 7*60) {
         mins += 24*60;
     }
-    return mins;
+    return mins * 60 * 1000;
 }
 
 SceneBuilder.prototype.playSimpleAnim = function(anim, dialog) {
-    var time = new Date(new Date('2015-01-01').getTime() + this.offset * 60 * 1000);
+    var time = new Date(new Date('2015-01-01').getTime() + this.offset);
     this.events.push({
         time: time.toTimeString().substr(0, 5),
         anim: anim,
         dialog: dialog
     });
-    this.offset += 10;
+    this.offset += animLength(anim);
 }
 
 function defaultSpread(c) {
@@ -102,7 +102,7 @@ SceneBuilder.prototype.playAnim = function(anim, dialog) {
         }
     } else if (typeof anim.repeat_for === 'string' || typeof anim.repeat_for === 'number') {
         var millis = ms(String(anim.repeat_for));
-        until = this.offset + millis / 1000;
+        until = this.offset + millis;
         while (this.offset < until) {
             this.playAnim(anim.anim, anim.dialog);
         }
