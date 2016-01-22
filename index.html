@@ -136,6 +136,9 @@
                 The script is written using <a href="http://www.copterlabs.com/json-what-it-is-how-it-works-how-to-use-it/">JSON</a>. A script is one or more animations. Each animation can be either the name of an After Effects animation: <code>"sit_down"</code>; or an array of animations, which will be played in sequence: <code>["sit_down", "sitting"]</code>; or an object with object with an <code>"anim"</code> property set to any kind of animation, and some other properties that change its behaviour:
                 <ul>
                     <li><code>"repeat_random": 5</code>: repeat the animation approximately 5 times, with some random variation</li>
+                    <li><code>"spread": 2</code>: controls how much variation there is for <code>"repeat_random"</code></li>
+                    <li><code>"repeat_for": "10 mins"</code>: repeat the animation for the given time period (you <b>must</b> specify a unit such as mins, hours, secs)</li>
+                    <li><code>"repeat_until": "14:15"</code>: repeat the animation until the given time of day (24 hour clock)</li>
                     <li><code>"likelihood": 0.4</code>: play the animation 40% of the time, and skip it the other 60% of the time</li>
                     <li><code>"backdrop": "bedroom"</code>: change the backdrop image before playing the animation</li>
                     <li><code>"name": "get_up"</code>: name a section of the script so it can be referenced in future</li>
