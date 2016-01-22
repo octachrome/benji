@@ -97,6 +97,10 @@
         font-size: 20pt;
         font-weight: bold;
     }
+    textarea {
+        white-space: pre;
+        resize: none;
+    }
     </style>
 </head>
 <body data-bind="click: closeTabs">
@@ -111,9 +115,9 @@
             <a href="#" data-bind="click: reset">Reset</a>
             <span class="invalid" data-bind="visible: invalid">INVALID</span>
         </div>
-        <textarea class="grow margin" data-bind="textinput: script"></textarea>
+        <textarea class="grow margin" data-bind="textinput: script" wrap="off"></textarea>
     </div>
-    <div class="sidebar scroll" data-bind="click: ignoreClick, visible: activeTab() === 'output'">
+    <div class="sidebar scroll scroll-x" data-bind="click: ignoreClick, visible: activeTab() === 'output'">
         <div class="margin">
             <div data-bind="foreach: results">
                 <a href="#" data-bind="text: time, click: resetAnimation.bind(null, $index())"></a> <span data-bind="text: anim"></span>
