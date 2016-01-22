@@ -1,5 +1,6 @@
 module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-contrib-copy');
+    grunt.loadNpmTasks('grunt-text-replace');
     grunt.loadNpmTasks('grunt-exec');
 
     grunt.initConfig({
@@ -20,8 +21,20 @@ module.exports = function (grunt) {
                 dest: 'lib'
             }
         },
+        replace: {
+            ms: {
+                src: 'node_modules/ms/index.js',
+                dest: 'lib/ms.js',
+                replacements: [
+                    {
+                        from: 'module.exports',
+                        to: 'window.ms'
+                    }
+                ]
+            }
+        },
         exec: {
-            'ftp': {
+            ftp: {
                 cmd: 'ncftpput -u chrisbro -p "<%=FTP_PWD%>" -R thebrown.net public_html/benji index.html lib js anim'
             }
         }

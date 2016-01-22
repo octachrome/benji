@@ -83,7 +83,7 @@ SceneBuilder.prototype.binom = function(x, spread) {
 }
 
 SceneBuilder.prototype.playAnim = function(anim, dialog) {
-    var i, count;
+    var i, count, until;
     if (Array.isArray(anim)) {
         for (i = 0; i < anim.length; i++) {
             this.playAnim(anim[i]);
@@ -96,8 +96,14 @@ SceneBuilder.prototype.playAnim = function(anim, dialog) {
             this.playAnim(anim.anim, anim.dialog);
         }
     } else if (typeof anim.repeat_until === 'string') {
-        var until = parseTime(anim.repeat_until);
-        while (this.offset <= until) {
+        until = parseTime(anim.repeat_until);
+        while (this.offset < until) {
+            this.playAnim(anim.anim, anim.dialog);
+        }
+    } else if (typeof anim.repeat_for === 'string' || typeof anim.repeat_for === 'number') {
+        var millis = ms(String(anim.repeat_for));
+        until = this.offset + millis / 1000;
+        while (this.offset < until) {
             this.playAnim(anim.anim, anim.dialog);
         }
     } else if (typeof anim.likelihood === 'number') {
