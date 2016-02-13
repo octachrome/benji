@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="lib/jquery.js"></script>
+    <script src="lib/knockout-latest.js"></script>
+    <script src="lib/bodymovin.js"></script>
+    <script>
+    var vm = {
+        json: ko.observable(''),
+        error: ko.observable('')
+    };
+    var anim;
+
+    ko.computed(function () {
+        try {
+            if (anim) {
+                bodymovin.destroy(anim);
+                anim = null;
+            }
+            var json = vm.json();
+            if (json) {
+                var data = JSON.parse(vm.json());
+                if (data) {
+                    anim = bodymovin.loadAnimation({
+                        wrapper: $('#target')[0],
+                        animType: 'svg',
+                        animationData: data
+                    });
+                }
+            }
+            vm.error('');
+        }
+        catch (e) {
+            vm.error(e.message);
+        }
+    });
+
+    $(function () {
+        ko.applyBindings(vm);
+    });
+    </script>
+    <style>
+    textarea {
+        height: 200px;
+        width: 80%;
+    }
+    </style>
+</head>
+<body>
+    <div class="json">
+        <p>Paste a bodymovin json file below:</p>
+        <textarea data-bind="textInput: json"></textarea>
+        <p data-bind="visible: error, text: error"></p>
+    </div>
+    <div id="target"></div>
+</body>
+</html>
