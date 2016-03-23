@@ -1,14 +1,22 @@
-var PORT = 8312;
+var PORT = 8311;
 var fs = require('fs');
 var path = require('path');
 var staticFile = require('connect-static-file');
 var express = require('express');
 
-var server = null;
+var app, server, port, scriptPath, animRoute;
 
-function startServer(animPath, scriptPath) {
+function startServer(_animPath, _scriptPath) {
+  return _startServer(_animPath, _scriptPath).then(function (port) {
+    return 'http://localhost:' + port + '/preview.html';
+  });
+}
+
+function _startServer(_animPath, _scriptPath) {
+  scriptPath = _scriptPath;
+  animRoute = express.static(_animPath);
   if (!server) {
-    var app = express();
+    app = express();
     app.use('/js', express.static('js'));
     app.use('/preview.html', staticFile('www/preview.html'));
     app.use('/lib/bodymovin.js', staticFile('node_modules/bodymovin/build/player/bodymovin.js'));
@@ -28,9 +36,42 @@ function startServer(animPath, scriptPath) {
         }
       });
     });
-    app.use('/anim', express.static(animPath));
-    app.use('/script.benji', staticFile(scriptPath));
-    server = app.listen(PORT);
+    app.use('/anim', function (req, res, next) {
+      animRoute(req, res, next);
+    });
+    app.use('/script.benji', function (req, res, next) {
+      fs.readFile(scriptPath, function (err, data) {
+        if (err) {
+          next(err);
+        }
+        else {
+          res.set('Content-Type', 'text/plain');
+          res.send(data);
+        }
+      });
+    });
+
+    port = PORT;
+    return new Promise(function (resolve, reject) {
+      function start() {
+        server = app.listen(port, function () {
+          resolve(port);
+        });
+        server.on('error', function (err) {
+          if (err.code === 'EADDRINUSE') {
+            port++;
+            start();
+          }
+          else {
+            reject(err);
+          }
+        });
+      }
+      start();
+    });
+  }
+  else {
+    return Promise.resolve(port);
   }
 }
 
