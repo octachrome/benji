@@ -1,0 +1,21 @@
+{
+  "name": "benji-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bodymovin": "github:bodymovin/bodymovin#02c4ae748a5894f584a562ac512b1759a3ad14fa",
+    "chance": "^1.0.1",
+    "connect-static-file": "^1.1.2",
+    "express": "^4.13.4",
+    "jquery": "^2.2.2",
+    "lodash": "^4.6.1",
+    "long": "^3.0.3",
+    "ms": "^0.7.1"
+  }
+}
