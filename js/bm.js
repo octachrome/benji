@@ -11,6 +11,8 @@
 // ind = index, from 1 to #layers
 // parent = index of parent layer (for relative pos/movement)
 // ks = animation data
+// ef?
+
 // ks:
 // a = origin for rotations: [float, float, 0]
 // p = position animation: [float, float, 0] or [{anim}, {anim}]

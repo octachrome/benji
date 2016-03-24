@@ -16,7 +16,8 @@
     "jquery": "^2.1.4",
     "knockout": "^3.4.0",
     "long": "^3.0.1",
-    "ms": "^0.7.1"
+    "ms": "^0.7.1",
+    "pegjs": "^0.9.0"
   },
   "devDependencies": {
     "grunt": "^0.4.5",
