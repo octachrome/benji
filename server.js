@@ -17,16 +17,16 @@ function _startServer(_animPath, _scriptPath) {
   animRoute = express.static(_animPath);
   if (!server) {
     app = express();
-    app.use('/js', express.static('js'));
-    app.use('/preview.html', staticFile('www/preview.html'));
-    app.use('/lib/bodymovin.js', staticFile('node_modules/bodymovin/build/player/bodymovin.js'));
-    app.use('/lib/jquery.js', staticFile('node_modules/jquery/dist/jquery.min.js'));
-    app.use('/lib/lodash.js', staticFile('node_modules/lodash/lodash.js'));
-    app.use('/lib/long.js', staticFile('node_modules/long/dist/long.js'));
-    app.use('/lib/chance.js', staticFile('node_modules/chance/chance.js'));
-    app.use('/lib/peg.js', staticFile('lib/peg-0.9.0.min.js'));
+    app.use('/js', express.static(__dirname + '/js'));
+    app.use('/preview.html', staticFile(__dirname + '/www/preview.html'));
+    app.use('/lib/bodymovin.js', staticFile(require.resolve('bodymovin/build/player/bodymovin.js')));
+    app.use('/lib/jquery.js', staticFile(require.resolve('jquery/dist/jquery.min.js')));
+    app.use('/lib/lodash.js', staticFile(require.resolve('lodash/lodash.js')));
+    app.use('/lib/long.js', staticFile(require.resolve('long/dist/long.js')));
+    app.use('/lib/chance.js', staticFile(require.resolve('chance/chance.js')));
+    app.use('/lib/peg.js', staticFile(__dirname + '/lib/peg-0.9.0.min.js'));
     app.get('/lib/ms.js', function (req, res, next) {
-      fs.readFile('node_modules/ms/index.js', {encoding: 'utf8'}, function (err, data) {
+      fs.readFile(require.resolve('ms/index.js'), {encoding: 'utf8'}, function (err, data) {
         if (err) {
           next(err);
         }
