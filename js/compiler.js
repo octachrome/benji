@@ -146,9 +146,10 @@ Compiler.prototype.compile = function(script) {
   else if (script.type === 'Dialog') {
     this.addEvent({
       type: 'dialog',
-      dialog: script.dialog
+      dialog: script.dialog,
+      pos: script.pos
     }, 0);
-    var dialogAnim = (vars.dialog_anims || '').split(' ')[0];
+    var dialogAnim = (this.vars.dialog_anims || '').split(' ')[script.pos];
     if (dialogAnim) {
       this.addEvent({
         type: 'play',
@@ -161,6 +162,12 @@ Compiler.prototype.compile = function(script) {
         anim: 'none'
       }, 2000);
     }
+    // Clear the dialog
+    this.addEvent({
+      type: 'dialog',
+      dialog: '',
+      pos: script.pos
+    }, 0);
   }
   else {
     console.error('Unknown script element: ' + script.type);

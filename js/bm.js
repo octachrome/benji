@@ -248,6 +248,14 @@ function extractAnims(root) {
     else if (script.type === 'Cmd' && script.cmd === 'play') {
       fg.push(script.args[0]);
     }
+    else if (script.type === 'Cmd' && script.cmd === 'set' && script.args[0] === 'dialog_anims') {
+      var anims = (script.args[1] || '').split(' ');
+      anims.forEach(function (anim) {
+        if (anim) {
+          fg.push(anim);
+        }
+      });
+    }
     else if (script.type === 'Cmd' && script.cmd === 'set' && script.args[0] === 'background') {
       bg.push(script.args[1]);
     }
@@ -261,8 +269,8 @@ function extractAnims(root) {
     }
   }
   extract(root);
-  // Create a unique list, with the backgrounds at the end.
-  return _.uniq(_.difference(fg, bg).concat(bg));
+  // Create a unique list, with the backgrounds at the end, and without the dummy 'none' animation.
+  return _.uniq(_.difference(fg, bg.concat('none')).concat(bg));
 }
 
 function fetchAnims(anims) {
@@ -321,12 +329,12 @@ Script.prototype.nextAnimEvent = function () {
         this.bm.play();
       } else {
         console.error('Unknown animation: ' + anim);
-        setTimeout(nextAnimEvent, 2000);
+        setTimeout(this.nextAnimEvent.bind(this), 100);
       }
       break;
     }
     else if (evt.event.type === 'dialog') {
-      this.updateDialog(evt.event.dialog);
+      this.updateDialog(evt.event.pos, evt.event.dialog);
     }
     else if (evt.event.type === 'background') {
       console.log('bg')
@@ -342,8 +350,6 @@ Script.prototype.nextAnimEvent = function () {
       } else {
         console.error('Unknown animation: ' + bm);
       }
-
-      this.updateDialog(evt.event.dialog);
     }
     else {
       console.error('Unknown event: ' + evt.event.type);
@@ -352,8 +358,13 @@ Script.prototype.nextAnimEvent = function () {
   }
 };
 
-Script.prototype.updateDialog = function (dialog) {
-
+Script.prototype.updateDialog = function (pos, dialog) {
+  if (pos === 0) {
+    $('#dialog-left').text(dialog);
+  }
+  else if (pos === 1) {
+    $('#dialog-right').text(dialog);
+  }
 };
 
 Script.prototype.load = function (scriptPath) {
@@ -380,10 +391,6 @@ Script.prototype.load = function (scriptPath) {
             loop: false,
             animationData: self.animationData
         });
-
-        var svg = $(self.bm.wrapper).children().first();
-        svg.css('width', '70%');
-        svg.css('height', '70%');
 
         self.bm.addEventListener('complete', function (e) {
             self.nextAnimEvent();

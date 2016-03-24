@@ -17,13 +17,30 @@
   });
   </script>
   <style>
-  div.target {
-    width: 100%;
-    height: 100%;
+  div#target {
+    position: relative;
+    width: 1344px;
+    height: 756px;
+  }
+  div#dialog-left, div#dialog-right {
+    position: absolute;
+    z-index: 1;
+    top: 40px;
+    font-size: 20pt;
+    font-weight: bold;
+  }
+  div#dialog-left {
+    left: 40px;
+  }
+  div#dialog-right {
+    right: 40px;
   }
   </style>
 </head>
 <body>
-  <div id="target"></div>
+  <div id="target">
+    <div id="dialog-left"></div>
+    <div id="dialog-right"></div>
+  </div>
 </body>
 </html>

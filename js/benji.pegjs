@@ -136,10 +136,11 @@
     });
   }
 
-  function mkDialog(dialog) {
+  function mkDialog(pos, dialog) {
     return new Element({
       type: 'Dialog',
-      dialog: dialog
+      dialog: dialog,
+      pos: pos === '>' ? 0 : 1
     });
   }
 
@@ -202,7 +203,7 @@ Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / Set / Maybe / Else
 Option = "|" element:Simple { return element.setOption(); }
 
 // A piece of dialog
-Dialog = [<>] _ chars:NCR+ { return mkDialog(flatten(chars)); }
+Dialog = pos:[<>] _ chars:NCR+ { return mkDialog(flatten(pos), flatten(chars)); }
 
 // Repeat commands
 Repeat = ":repeat" __ rand:"~"? count:[0-9]+ __ "time" "s"? { return mkCmd('repeat', !!rand, parseInt(flatten(count))); }
