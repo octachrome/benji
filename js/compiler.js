@@ -87,7 +87,7 @@ Compiler.prototype.compile = function(script) {
     script.children.forEach(this.compile.bind(this));
   }
   else if (script.type === 'Choice') {
-    compile(this.chance.pick(script.children));
+    this.compile(this.chance.pick(script.children));
   }
   else if (script.type === 'Cmd') {
     if (script.cmd === 'set') {
