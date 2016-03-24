@@ -381,6 +381,10 @@ Script.prototype.load = function (scriptPath) {
             animationData: self.animationData
         });
 
+        var svg = $(self.bm.wrapper).children().first();
+        svg.css('width', '70%');
+        svg.css('height', '70%');
+
         self.bm.addEventListener('complete', function (e) {
             self.nextAnimEvent();
         });
