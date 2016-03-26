@@ -195,16 +195,6 @@ function combine(dest, src) {
     };
 }
 
-function extendLayers(layers, ip, op) {
-    if (layers) {
-        for (var l = 0; l < layers.length; l++) {
-            var layer = layers[l];
-            layer.ip = ip;
-            layer.op = op;
-        }
-    }
-}
-
 function fetchAnims(anims) {
     return $.when.apply($, anims.map(function (name) {
         return $.get('anim/' + name + '.json');
@@ -336,20 +326,13 @@ Script.prototype.nextAnimEvent = function () {
     else if (evt.event.type === 'dialog') {
       this.updateDialog(evt.event.pos, evt.event.dialog);
     }
-    else if (evt.event.type === 'background') {
-      console.log('bg')
-      var bm = evt.event.anim;
-      if (this.metadata[bm]) {
-        var layerRange = this.metadata[bm].layers;
-        for (var l = layerRange[0]; l < layerRange[1]; l++) {
-            var layer = this.animationData.layers[l];
-            layer.ip = this.animationData.ip;
-            layer.op = this.animationData.op;
-            // todo: background may have nested layers and/or asset layers
-        }
-      } else {
-        console.error('Unknown animation: ' + bm);
-      }
+    else if (evt.event.type === 'background-on') {
+      var bg = evt.event.anim;
+      this.extendLayers(bg);
+    }
+    else if (evt.event.type === 'background-off') {
+      var oldBg = evt.event.anim;
+      this.unextendLayers(oldBg);
     }
     else {
       console.error('Unknown event: ' + evt.event.type);
@@ -357,6 +340,35 @@ Script.prototype.nextAnimEvent = function () {
     }
   }
 };
+
+Script.prototype.extendLayers = function(name) {
+  if (this.metadata[name]) {
+    var layerRange = this.metadata[name].layers;
+    for (var l = layerRange[0]; l < layerRange[1]; l++) {
+        var layer = this.animationData.layers[l];
+        layer.ip = this.animationData.ip;
+        layer.op = this.animationData.op;
+        // todo: may have nested layers and/or asset layers
+    }
+  } else {
+    console.error('Unknown animation: ' + name);
+  }
+}
+
+Script.prototype.unextendLayers = function(name) {
+  if (this.metadata[name]) {
+    var layerRange = this.metadata[name].layers;
+    var segment = this.metadata[name].segment;
+    for (var l = layerRange[0]; l < layerRange[1]; l++) {
+        var layer = this.animationData.layers[l];
+        layer.ip = segment[0];
+        layer.op = segment[1];
+        // todo: may have nested layers and/or asset layers
+    }
+  } else {
+    console.error('Unknown animation: ' + name);
+  }
+}
 
 Script.prototype.updateDialog = function (pos, dialog) {
   if (pos === 0) {

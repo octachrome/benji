@@ -59,7 +59,7 @@ Compiler.prototype.addEvent = function(event, length) {
         time: time.toTimeString().substr(0, 5),
         event: event
     });
-    this.offset += length;
+    this.offset += (length || 0);
 }
 
 function defaultSpread(c) {
@@ -91,11 +91,16 @@ Compiler.prototype.compile = function(script) {
   }
   else if (script.type === 'Cmd') {
     if (script.cmd === 'set') {
+      var oldVal = this.vars[script.args[0]];
       this.vars[script.args[0]] = script.args[1];
       if (script.args[0] === 'background') {
         var bg = script.args[1];
         this.addEvent({
-          type: 'background',
+          type: 'background-off',
+          anim: oldVal
+        });
+        this.addEvent({
+          type: 'background-on',
           anim: bg
         }, this.script.getAnimLength(bg));
       }
@@ -148,7 +153,7 @@ Compiler.prototype.compile = function(script) {
       type: 'dialog',
       dialog: script.dialog,
       pos: script.pos
-    }, 0);
+    });
     var dialogAnim = (this.vars.dialog_anims || '').split(' ')[script.pos];
     if (dialogAnim) {
       this.addEvent({
