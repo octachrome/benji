@@ -217,7 +217,8 @@ TimeOfDay = [0-9] [0-9]? ":" [0-9] [0-9]
 Play = ":play" __ chars:[a-zA-Z_0-9-]+ { return mkCmd('play', flatten(chars)); }
 
 // Set variable command
-Set = ":set" __ name:[a-zA-Z_0-9-]+  __ value:NCR+ { return mkCmd('set', flatten(name), flatten(value)); }
+Set = ":set" __ name:[a-zA-Z_0-9-]+ value:SetValue? { return mkCmd('set', flatten(name), flatten(value)); }
+SetValue = __ value:NCR+ { return value; }
 
 // Maybe/else command
 Maybe = ":maybe" __ chance:[0-9]+ "%" { return mkCmd('maybe', parseInt(flatten(chance))); }

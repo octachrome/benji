@@ -326,6 +326,9 @@ Script.prototype.nextAnimEvent = function () {
     else if (evt.event.type === 'dialog') {
       this.updateDialog(evt.event.pos, evt.event.dialog);
     }
+    else if (evt.event.type === 'clear-dialog') {
+      this.updateDialog(evt.event.pos, '');
+    }
     else if (evt.event.type === 'background-on') {
       var bg = evt.event.anim;
       this.extendLayers(bg);

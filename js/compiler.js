@@ -39,7 +39,7 @@ function compileScript(dateStr, script) {
     var chance = new Chance(seed);
 
     var compiler = new Compiler(chance, script);
-    compiler.compile(script.root);
+    compiler.compileRoot(script.root);
     return compiler.events;
 }
 
@@ -81,13 +81,40 @@ Compiler.prototype.binom = function(x, spread) {
     return Math.max(0, x);
 }
 
-Compiler.prototype.compile = function(script) {
-  var count, until;
+Compiler.prototype.compileRoot = function(script) {
+  var ctx = {};
+  this.compile(script, ctx);
+  if (ctx.clearDialogAfterNext != null) {
+    this.addEvent({
+      type: 'clear-dialog',
+      pos: ctx.clearDialogAfterNext
+    });
+  }
+};
+
+Compiler.prototype.compile = function(script, ctx) {
+  var count, until, i;
   if (script.type === 'Seq') {
-    script.children.forEach(this.compile.bind(this));
+    var lastCtx = {};
+    for (i = 0; i < script.children.length; i++) {
+      var childCtx = {};
+      this.compile(script.children[i], childCtx);
+      if (lastCtx.clearDialogAfterNext != null) {
+        this.addEvent({
+          type: 'clear-dialog',
+          pos: lastCtx.clearDialogAfterNext
+        });
+      }
+      lastCtx = childCtx;
+    }
+    if (lastCtx.clearDialogAfterNext != null) {
+      // If the last statement in a sequence is dialog, it will be cleared after
+      // the parent finishes.
+      ctx.clearDialogAfterNext = lastCtx.clearDialogAfterNext;
+    }
   }
   else if (script.type === 'Choice') {
-    this.compile(this.chance.pick(script.children));
+    this.compile(this.chance.pick(script.children), ctx);
   }
   else if (script.type === 'Cmd') {
     if (script.cmd === 'set') {
@@ -95,10 +122,12 @@ Compiler.prototype.compile = function(script) {
       this.vars[script.args[0]] = script.args[1];
       if (script.args[0] === 'background') {
         var bg = script.args[1];
-        this.addEvent({
-          type: 'background-off',
-          anim: oldVal
-        });
+        if (oldVal) {
+          this.addEvent({
+            type: 'background-off',
+            anim: oldVal
+          });
+        }
         this.addEvent({
           type: 'background-on',
           anim: bg
@@ -119,29 +148,29 @@ Compiler.prototype.compile = function(script) {
       else {
         count = script.args[1];
       }
-      for (var i = 0; i < count; i++) {
-          this.compile(script.child);
+      for (i = 0; i < count; i++) {
+          this.compile(script.child, ctx);
       }
     }
     else if (script.cmd === 'repeat_for') {
       var millis = ms(script.args[1] + ' ' + script.args[2]);
       until = this.offset + millis;
       while (this.offset < until) {
-          this.compile(script.child);
+          this.compile(script.child, ctx);
       }
     }
     else if (script.cmd === 'repeat_until') {
       until = parseTime(script.args[1]);
       while (this.offset < until) {
-          this.compile(script.child);
+          this.compile(script.child, ctx);
       }
     }
     else if (script.cmd === 'maybe') {
       if (this.chance.bool({likelihood: script.args[0]})) {
-          this.compile(script.child);
+          this.compile(script.child, ctx);
       }
       else if (script.else) {
-        this.compile(script.else);
+        this.compile(script.else, ctx);
       }
     }
     else {
@@ -160,19 +189,14 @@ Compiler.prototype.compile = function(script) {
         type: 'play',
         anim: dialogAnim
       }, this.script.getAnimLength(dialogAnim));
+      this.addEvent({
+        type: 'clear-dialog',
+        pos: script.pos
+      });
     }
     else {
-      this.addEvent({
-        type: 'play',
-        anim: 'none'
-      }, 2000);
+      ctx.clearDialogAfterNext = script.pos;
     }
-    // Clear the dialog
-    this.addEvent({
-      type: 'dialog',
-      dialog: '',
-      pos: script.pos
-    }, 0);
   }
   else {
     console.error('Unknown script element: ' + script.type);
