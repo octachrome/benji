@@ -185,12 +185,14 @@ Compiler.prototype.compile = function(script, ctx) {
     });
     var dialogAnim = (this.vars.dialog_anims || '').split(' ')[script.pos];
     if (dialogAnim) {
-      var rpt = Math.round((script.dialog || '').length / 20) || 1;
+      var animLen = this.script.getAnimLength(dialogAnim);
+      var rpt = Math.round((script.dialog || '').length / animLen * 100) || 1;
+      console.log(animLen + ':' + rpt);
       for (var i = 0; i < rpt; i++) {
         this.addEvent({
           type: 'play',
           anim: dialogAnim
-        }, this.script.getAnimLength(dialogAnim));
+        }, animLen);
       }
       this.addEvent({
         type: 'clear-dialog',
