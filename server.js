@@ -25,6 +25,7 @@ function _startServer(_animPath, _scriptPath) {
     app.use('/lib/long.js', staticFile(require.resolve('long/dist/long.js')));
     app.use('/lib/chance.js', staticFile(require.resolve('chance/chance.js')));
     app.use('/lib/peg.js', staticFile(__dirname + '/lib/peg-0.9.0.min.js'));
+    app.use('/lib/pixi.min.js', staticFile(__dirname + '/lib/pixi.min.js'));
     app.get('/lib/ms.js', function (req, res, next) {
       fs.readFile(require.resolve('ms/index.js'), {encoding: 'utf8'}, function (err, data) {
         if (err) {

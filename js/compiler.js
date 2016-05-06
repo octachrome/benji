@@ -4,6 +4,8 @@ var Long = dcodeIO.Long;
 var mul = new Long(0xDEECE66D, 0x5);
 var mask = new Long(0xFFFFFFFF, 0xFFFF);
 
+var FRAME_RATE = 12.5;
+
 // 48-bit random number, can be fully represented in a JavaScript number.
 function gen(input) {
     var seed = Long.fromNumber(input);
@@ -20,16 +22,16 @@ function dateSeed(date) {
     return seed;
 }
 
-function Compiler(chance, script) {
+function Compiler(chance, manifest) {
     // 7am in millis
     this.offset = ms('7 hours');
     this.chance = chance;
     this.events = [];
-    this.script = script;
+    this.manifest = manifest;
     this.vars = {};
 }
 
-function compileScript(dateStr, script) {
+function compileScript(dateStr, manifest, script) {
     var millis = Date.parse(dateStr);
     if (!millis) {
         throw new Error('invalid date');
@@ -38,8 +40,8 @@ function compileScript(dateStr, script) {
     var seed = dateSeed(date);
     var chance = new Chance(seed);
 
-    var compiler = new Compiler(chance, script);
-    compiler.compileRoot(script.root);
+    var compiler = new Compiler(chance, manifest);
+    compiler.compileRoot(script);
     return compiler.events;
 }
 
@@ -82,128 +84,142 @@ Compiler.prototype.binom = function(x, spread) {
 }
 
 Compiler.prototype.compileRoot = function(script) {
-  var ctx = {};
-  this.compile(script, ctx);
-  if (ctx.clearDialogAfterNext != null) {
-    this.addEvent({
-      type: 'clear-dialog',
-      pos: ctx.clearDialogAfterNext
-    });
-  }
+    var ctx = {};
+    this.compile(script, ctx);
+    if (ctx.clearDialogAfterNext != null) {
+        this.addEvent({
+            type: 'clear-dialog',
+            pos: ctx.clearDialogAfterNext
+        });
+    }
 };
 
 Compiler.prototype.compile = function(script, ctx) {
-  var count, until, i;
-  if (script.type === 'Seq') {
-    var lastCtx = {};
-    for (i = 0; i < script.children.length; i++) {
-      var childCtx = {};
-      this.compile(script.children[i], childCtx);
-      if (lastCtx.clearDialogAfterNext != null) {
-        this.addEvent({
-          type: 'clear-dialog',
-          pos: lastCtx.clearDialogAfterNext
-        });
-      }
-      lastCtx = childCtx;
-    }
-    if (lastCtx.clearDialogAfterNext != null) {
-      // If the last statement in a sequence is dialog, it will be cleared after
-      // the parent finishes.
-      ctx.clearDialogAfterNext = lastCtx.clearDialogAfterNext;
-    }
-  }
-  else if (script.type === 'Choice') {
-    this.compile(this.chance.pick(script.children), ctx);
-  }
-  else if (script.type === 'Cmd') {
-    if (script.cmd === 'set') {
-      var oldVal = this.vars[script.args[0]];
-      this.vars[script.args[0]] = script.args[1];
-      if (script.args[0] === 'background') {
-        var bg = script.args[1];
-        if (oldVal) {
-          this.addEvent({
-            type: 'background-off',
-            anim: oldVal
-          });
+    var count, until, i;
+    if (script.type === 'Seq') {
+        var lastCtx = {};
+        for (i = 0; i < script.children.length; i++) {
+            var childCtx = {};
+            this.compile(script.children[i], childCtx);
+            if (lastCtx.clearDialogAfterNext != null) {
+                this.addEvent({
+                    type: 'clear-dialog',
+                    pos: lastCtx.clearDialogAfterNext
+                });
+            }
+            lastCtx = childCtx;
         }
+        if (lastCtx.clearDialogAfterNext != null) {
+            // If the last statement in a sequence is dialog, it will be cleared after
+            // the parent finishes.
+            ctx.clearDialogAfterNext = lastCtx.clearDialogAfterNext;
+        }
+    }
+    else if (script.type === 'Choice') {
+        this.compile(this.chance.pick(script.children), ctx);
+    }
+    else if (script.type === 'Cmd') {
+        if (script.cmd === 'set') {
+            var oldVal = this.vars[script.args[0]];
+            this.vars[script.args[0]] = script.args[1];
+/*todo
+            if (script.args[0] === 'background') {
+                var bg = script.args[1];
+                if (oldVal) {
+                    this.addEvent({
+                        type: 'background-off',
+                        anim: oldVal
+                    });
+                }
+                this.addEvent({
+                    type: 'background-on',
+                    anim: bg
+                }, this.getAnimLength(bg));
+            }
+*/        }
+        else if (script.cmd === 'play') {
+            var anim = script.args[0];
+            this.addAnimEvents(anim);
+        }
+        else if (script.cmd === 'repeat') {
+            if (script.args[0]) {
+                count = this.binom(script.args[1]);
+            }
+            else {
+                count = script.args[1];
+            }
+            for (i = 0; i < count; i++) {
+                this.compile(script.child, ctx);
+            }
+        }
+        else if (script.cmd === 'repeat_for') {
+            var millis = ms(script.args[1] + ' ' + script.args[2]);
+            until = this.offset + millis;
+            while (this.offset < until) {
+                this.compile(script.child, ctx);
+            }
+        }
+        else if (script.cmd === 'repeat_until') {
+            until = parseTime(script.args[1]);
+            while (this.offset < until) {
+                this.compile(script.child, ctx);
+            }
+        }
+        else if (script.cmd === 'maybe') {
+            if (this.chance.bool({likelihood: script.args[0]})) {
+                this.compile(script.child, ctx);
+            }
+            else if (script.else) {
+                this.compile(script.else, ctx);
+            }
+        }
+        else {
+            console.error('Unknown command: ' + script.cmd);
+        }
+    }
+    else if (script.type === 'Dialog') {
         this.addEvent({
-          type: 'background-on',
-          anim: bg
-        }, this.script.getAnimLength(bg));
-      }
-    }
-    else if (script.cmd === 'play') {
-      var anim = script.args[0];
-      this.addEvent({
-        type: 'play',
-        anim: anim
-      }, this.script.getAnimLength(anim));
-    }
-    else if (script.cmd === 'repeat') {
-      if (script.args[0]) {
-        count = this.binom(script.args[1]);
-      }
-      else {
-        count = script.args[1];
-      }
-      for (i = 0; i < count; i++) {
-          this.compile(script.child, ctx);
-      }
-    }
-    else if (script.cmd === 'repeat_for') {
-      var millis = ms(script.args[1] + ' ' + script.args[2]);
-      until = this.offset + millis;
-      while (this.offset < until) {
-          this.compile(script.child, ctx);
-      }
-    }
-    else if (script.cmd === 'repeat_until') {
-      until = parseTime(script.args[1]);
-      while (this.offset < until) {
-          this.compile(script.child, ctx);
-      }
-    }
-    else if (script.cmd === 'maybe') {
-      if (this.chance.bool({likelihood: script.args[0]})) {
-          this.compile(script.child, ctx);
-      }
-      else if (script.else) {
-        this.compile(script.else, ctx);
-      }
+            type: 'dialog',
+            dialog: script.dialog,
+            pos: script.pos
+        });
+        var dialogAnim = (this.vars.dialog_anims || '').split(' ')[script.pos];
+        if (dialogAnim) {
+            var frames = (script.dialog || '').length * 100;
+            this.addAnimEvents(dialogAnim, frames);
+            this.addEvent({
+                type: 'clear-dialog',
+                pos: script.pos
+            });
+        }
+        else {
+            ctx.clearDialogAfterNext = script.pos;
+        }
     }
     else {
-      console.error('Unknown command: ' + script.cmd);
+        console.error('Unknown script element: ' + script.type);
     }
-  }
-  else if (script.type === 'Dialog') {
-    this.addEvent({
-      type: 'dialog',
-      dialog: script.dialog,
-      pos: script.pos
-    });
-    var dialogAnim = (this.vars.dialog_anims || '').split(' ')[script.pos];
-    if (dialogAnim) {
-      var animLen = this.script.getAnimLength(dialogAnim);
-      var rpt = Math.round((script.dialog || '').length / animLen * 100) || 1;
-      console.log(animLen + ':' + rpt);
-      for (var i = 0; i < rpt; i++) {
-        this.addEvent({
-          type: 'play',
-          anim: dialogAnim
-        }, animLen);
-      }
-      this.addEvent({
-        type: 'clear-dialog',
-        pos: script.pos
-      });
-    }
-    else {
-      ctx.clearDialogAfterNext = script.pos;
-    }
-  }
-  else {
-    console.error('Unknown script element: ' + script.type);
-  }
 };
+
+Compiler.prototype.addAnimEvents = function (animName, frames) {
+    var anim = this.manifest[animName];
+    if (!anim) {
+        console.error('Skipped unknown animation ' + animName);
+        this.addEvent({
+            type: 'play',
+            anim: 'missing'
+        }, 1000);
+    }
+    var rpt = 1;
+    if (frames) {
+        rpt = Math.round(frames / anim.totalFrames) || 1;
+    }
+    for (var i = 0; i < rpt; i++) {
+        for (var j = 0; j < anim.segments.length; j++) {
+            this.addEvent({
+                type: 'play',
+                anim: anim.segments[j].name
+            }, anim.segments[j].frames);
+        }
+    }
+}
