@@ -2,7 +2,7 @@ function Player(stage) {
     this.stage = stage;
 }
 
-Player.prototype.play = function(animName) {
+Player.prototype.play = function(animName, repeat) {
     var resource = PIXI.loader.resources['anim/' + animName + '.json'];
     if (!resource) {
         throw new Error('Animation not loaded: ' + animName);
@@ -20,6 +20,7 @@ Player.prototype.play = function(animName) {
     }
 
     this.playing = true;
+    this.repeat = repeat;
 };
 
 Player.prototype.update = function() {
@@ -29,11 +30,15 @@ Player.prototype.update = function() {
     var elapsedTime = new Date().getTime() - this.startTime;
     var frame = Math.floor(elapsedTime * FRAME_RATE / 1000);
     if (frame >= this.textureNames.length) {
-        this.playing = false;
-        this.onend && this.onend();
+        if (this.repeat) {
+            frame = frame % this.textureNames.length;
+        }
+        else {
+            this.playing = false;
+            this.onend && this.onend();
+            return;
+        }
     }
-    else {
-        var textureName = this.textureNames[frame];
-        this.sprite.texture = this.textures[textureName];
-    }
+    var textureName = this.textureNames[frame];
+    this.sprite.texture = this.textures[textureName];
 }

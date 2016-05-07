@@ -20,10 +20,12 @@ Script.prototype.play = function (scriptPath) {
     this.nextEvent = 0;
     this.createRenderer();
     this.player = new Player(this.stage);
-    this.player.onend = this.nextAnimEvent.bind(this);
+    this.player.onend = this.playNextEvent.bind(this);
+    this.bgPlayer = new Player(this.stage);
+    this.bgPlayer.onend = this.playNextBgAnim.bind(this);
     return this.loadScript(scriptPath).then(function () {
         return self.preloadAnims().then(function () {
-            self.nextAnimEvent();
+            self.playNextEvent();
             self.gameLoop();
         });
     });
@@ -44,6 +46,11 @@ Script.prototype.preloadAnims = function (callback) {
         if (evt.event.type === 'play') {
             anims[evt.event.anim] = 1;
         }
+        else if(evt.event.type === 'background') {
+            evt.event.anims.forEach(function (anim) {
+                anims[anim] = 1;
+            });
+        }
     }
     var loader = PIXI.loader;
     Object.keys(anims).forEach(function (a) {
@@ -58,11 +65,12 @@ Script.prototype.preloadAnims = function (callback) {
 
 Script.prototype.gameLoop = function () {
     this.player.update();
+    this.bgPlayer.update();
     this.renderer.render(this.stage);
     requestAnimationFrame(this.gameLoop.bind(this));
 };
 
-Script.prototype.nextAnimEvent = function () {
+Script.prototype.playNextEvent = function () {
     while (true) {
         if (this.nextEvent >= this.events.length) {
             this.nextEvent = 0;
@@ -81,17 +89,24 @@ Script.prototype.nextAnimEvent = function () {
         else if (evt.event.type === 'clear-dialog') {
             this.updateDialog(evt.event.pos, '');
         }
-        else if (evt.event.type === 'background-on') {
-            var bg = evt.event.anim;
-            // this.extendLayers(bg);
-        }
-        else if (evt.event.type === 'background-off') {
-            var oldBg = evt.event.anim;
-            // this.unextendLayers(oldBg);
+        else if (evt.event.type === 'background') {
+            this.bgAnims = evt.event.anims;
+            this.nextBgAnim = 0;
+            this.playNextBgAnim();
         }
         else {
             console.error('Unknown event: ' + evt.event.type);
             break;
+        }
+    }
+};
+
+Script.prototype.playNextBgAnim = function () {
+    if (this.bgAnims) {
+        this.bgPlayer.play(this.bgAnims[this.nextBgAnim]);
+        this.nextBgAnim++;
+        if (this.nextBgAnim >= this.bgAnims.length) {
+            this.nextBgAnim = 0;
         }
     }
 };
