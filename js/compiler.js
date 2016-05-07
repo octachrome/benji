@@ -5,6 +5,7 @@ var mul = new Long(0xDEECE66D, 0x5);
 var mask = new Long(0xFFFFFFFF, 0xFFFF);
 
 var FRAME_RATE = 12.5;
+var DIALOG_SPEED = 1.2; // animation frames per character of dialog
 
 // 48-bit random number, can be fully represented in a JavaScript number.
 function gen(input) {
@@ -185,7 +186,7 @@ Compiler.prototype.compile = function(script, ctx) {
         });
         var dialogAnim = (this.vars.dialog_anims || '').split(' ')[script.pos];
         if (dialogAnim) {
-            var frames = (script.dialog || '').length * 100;
+            var frames = (script.dialog || '').length * DIALOG_SPEED;
             this.addAnimEvents(dialogAnim, frames);
             this.addEvent({
                 type: 'clear-dialog',
@@ -212,7 +213,7 @@ Compiler.prototype.addAnimEvents = function (animName, frames) {
     }
     var rpt = 1;
     if (frames) {
-        rpt = Math.round(frames / anim.totalFrames) || 1;
+        rpt = Math.ceil(frames / anim.totalFrames);
     }
     for (var i = 0; i < rpt; i++) {
         for (var j = 0; j < anim.segments.length; j++) {

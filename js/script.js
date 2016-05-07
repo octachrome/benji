@@ -39,7 +39,7 @@ Script.prototype.createRenderer = function () {
 
 Script.prototype.preloadAnims = function (callback) {
     var anims = {};
-    for (var i = 0; i < 10; i++) {
+    for (var i = 0; i < this.events.length; i++) {
         var evt = this.events[i];
         if (evt.event.type === 'play') {
             anims[evt.event.anim] = 1;
