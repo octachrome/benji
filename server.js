@@ -89,5 +89,5 @@ module.exports = {
 };
 
 if (require.main === module) {
-  startServer('/home/chris/code/benji-data/anim', '/home/chris/code/benji-data/scripts/testing.benji');
+  startServer('/home/chris/code/benji-data/anim', '/home/chris/code/benji-data/scripts/test.benji');
 }
