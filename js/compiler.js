@@ -56,13 +56,14 @@ function parseTime(time) {
     return mins * 60 * 1000;
 }
 
-Compiler.prototype.addEvent = function(event, length) {
-    var time = new Date(new Date('2015-01-01').getTime() + this.offset);
+Compiler.prototype.addEvent = function(event, frames) {
+    var ms = (frames || 0) / FRAME_RATE * 1000;
     this.events.push({
-        time: time.toTimeString().substr(0, 5),
-        event: event
+        time: this.offset,
+        event: event,
+        duration: ms
     });
-    this.offset += (length || 0);
+    this.offset += ms;
 }
 
 function defaultSpread(c) {
@@ -198,7 +199,7 @@ Compiler.prototype.addAnimEvents = function (animName, frames) {
         this.addEvent({
             type: 'play',
             anim: 'missing'
-        }, 1000);
+        }, 30);
     }
     var rpt = 1;
     if (frames) {
@@ -226,5 +227,5 @@ Compiler.prototype.addBackgroundEvent = function (animName) {
     this.addEvent({
         type: 'background',
         anims: anims
-    }, 0);
+    });
 }

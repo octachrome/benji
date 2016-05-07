@@ -1,3 +1,5 @@
+var PRELOAD_MS = 5 * 1000;
+
 var parser;
 
 function getParser() {
@@ -39,28 +41,58 @@ Script.prototype.createRenderer = function () {
     this.stage = new PIXI.Container();
 };
 
-Script.prototype.preloadAnims = function (callback) {
+Script.prototype.preloadAnims = function () {
     var anims = {};
-    for (var i = 0; i < this.events.length; i++) {
+
+    // Always keep the current background animation around.
+    if (this.bgAnims) {
+        this.bgAnims.forEach(function (anim) {
+            anims[anim] = 1;
+        });
+    }
+
+    var duration = 0;
+    var i = this.nextEvent;
+
+    while (duration < PRELOAD_MS) {
         var evt = this.events[i];
+
         if (evt.event.type === 'play') {
-            anims[evt.event.anim] = 1;
+            var anim = evt.event.anim;
+            anims[anim] = 1;
         }
-        else if(evt.event.type === 'background') {
+        else if (evt.event.type === 'background') {
             evt.event.anims.forEach(function (anim) {
                 anims[anim] = 1;
             });
         }
+
+        duration += evt.duration;
+        i++;
+        if (i >= this.events.length) {
+            i = 0;
+        }
     }
+
     var loader = PIXI.loader;
+    var mustLoad = false;
     Object.keys(anims).forEach(function (a) {
-        loader.add('anim/' + a + '.json');
+        var resource = 'anim/' + a + '.json';
+        if (!loader.resources[resource]) {
+            loader.add(resource);
+            mustLoad = true;
+        }
     });
-    return new Promise(function (resolve, reject) {
-        loader.load(function () {
-            resolve();
+    if (mustLoad) {
+        return new Promise(function (resolve, reject) {
+            loader.load(function () {
+                resolve();
+            });
         });
-    });
+    }
+    else {
+        return Promise.resolve();
+    }
 };
 
 Script.prototype.gameLoop = function () {
@@ -71,6 +103,8 @@ Script.prototype.gameLoop = function () {
 };
 
 Script.prototype.playNextEvent = function () {
+    this.preloadAnims();
+
     while (true) {
         if (this.nextEvent >= this.events.length) {
             this.nextEvent = 0;
