@@ -74,16 +74,27 @@ Script.prototype.preloadAnims = function () {
         }
     }
 
-    var loader = PIXI.loader;
-    var mustLoad = false;
-    Object.keys(anims).forEach(function (a) {
-        var resource = 'anim/' + a + '.json';
-        if (!loader.resources[resource]) {
-            loader.add(resource);
-            mustLoad = true;
-        }
+    var resourcesNeeded = Object.keys(anims).map(function (anim) {
+        return 'anim/' + anim + '.json';
     });
-    if (mustLoad) {
+    var loader = PIXI.loader;
+    var resourcesPresent = Object.keys(loader.resources).filter(function (resource) {
+        return !/_image$/.test(resource);
+    });
+
+    var mustLoad = _.difference(resourcesNeeded, resourcesPresent);
+    var mustUnload = _.difference(resourcesPresent, resourcesNeeded);
+/*
+    mustUnload.forEach(function (res) {
+        var resource = PIXI.loader.resources[res];
+        var firstTexture = resource.textures[Object.keys(resource.textures)[0]];
+        firstTexture.destroy(true);
+        delete loader.resources[res];
+        delete loader.resources[res + '_image'];
+    });
+*/
+    if (mustLoad.length) {
+        loader.add(mustLoad);
         return new Promise(function (resolve, reject) {
             loader.load(function () {
                 resolve();
@@ -106,11 +117,11 @@ Script.prototype.playNextEvent = function () {
     this.preloadAnims();
 
     while (true) {
+        var evt = this.events[this.nextEvent];
+        this.nextEvent++;
         if (this.nextEvent >= this.events.length) {
             this.nextEvent = 0;
         }
-        var evt = this.events[this.nextEvent];
-        this.nextEvent++;
 
         if (evt.event.type === 'play') {
             var anim = evt.event.anim;
