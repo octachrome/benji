@@ -19,7 +19,6 @@ function _startServer(_animPath, _scriptPath) {
     app = express();
     app.use('/js', express.static(__dirname + '/js'));
     app.use('/preview.html', staticFile(__dirname + '/www/preview.html'));
-    app.use('/lib/bodymovin.js', staticFile(require.resolve('bodymovin/build/player/bodymovin.js')));
     app.use('/lib/jquery.js', staticFile(require.resolve('jquery/dist/jquery.min.js')));
     app.use('/lib/lodash.js', staticFile(require.resolve('lodash/lodash.js')));
     app.use('/lib/long.js', staticFile(require.resolve('long/dist/long.js')));
