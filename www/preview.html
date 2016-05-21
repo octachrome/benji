@@ -1,23 +1,45 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <script src="/lib/pixi.js"></script>
-  <script src="/lib/jquery.js"></script>
-  <script src="/lib/lodash.js"></script>
-  <script src="/lib/long.js"></script>
-  <script src="/lib/chance.js"></script>
-  <script src="/lib/peg.js"></script>
-  <script src="/lib/ms.js"></script>
-  <script src="/js/compiler.js"></script>
-  <script src="/js/player.js"></script>
-  <script src="/js/script.js"></script>
+  <link rel="stylesheet" href="style.css"></head>
+  <script src="lib/pixi.js"></script>
+  <script src="lib/jquery.js"></script>
+  <script src="lib/knockout.js"></script>
+  <script src="lib/lodash.js"></script>
+  <script src="lib/long.js"></script>
+  <script src="lib/chance.js"></script>
+  <script src="lib/peg-0.9.0.min.js"></script>
+  <script src="lib/ms.js"></script>
+  <script src="js/compiler.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/script.js"></script>
+  <script src="js/controls.js"></script>
   <script>
   $(function () {
     var script = new Script();
-    script.play('/script.benji');
+    script.play('script.benji');
   });
   </script>
   <style>
+  body {
+    font-family: Courier, "Courier New", monospace;
+  }
+  div.controls {
+    height: 20px;
+  }
+  div.menuHolder {
+    padding: 10px;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  i:hover {
+    color: green;
+    cursor: pointer;
+  }
+  div.buttons, div.time {
+    text-align: center;
+  }
   div#target {
     position: relative;
     width: 1280px;
@@ -28,7 +50,6 @@
     margin-top: 20px;
     font-size: 20pt;
     font-weight: bold;
-    font-family: monospace, Courier, Courier New;
     text-align: center;
   }
   div#dialog-left {
@@ -37,9 +58,43 @@
   div#dialog-right {
   	color: #933;
   }
+  div.sidebar {
+    position: absolute;
+    z-index: 2;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 300px;
+    background: rgba(200, 200, 200, .5);
+    padding: 40px 10px 10px 10px;
+    overflow-y: auto;
+  }
   </style>
 </head>
 <body>
+  <div class="menuHolder" data-bind="visible: !sidebarVisible()">
+    <i class="icon-menu" data-bind="click: showSidebar"></i>
+  </div>
+  <div class="sidebar" data-bind="visible: sidebarVisible">
+    <div class="menuHolder" data-bind="visible: sidebarVisible">
+      <i class="icon-menu" data-bind="click: hideSidebar"></i>
+    </div>
+    <!-- ko foreach: events -->
+    <div data-bind="text: $data"></div>
+    <!-- /ko -->
+  </div>
+  <div class="controls">
+    <div class="buttons">
+      <i class="icon-previous2"></i>
+      <i class="icon-backward2"></i>
+      <i class="icon-pause2"></i>
+      <i class="icon-forward3"></i>
+      <i class="icon-next2"></i>
+    </div>
+    <div class="time">
+      7:00.02
+    </div>
+  </div>
   <div id="target">
     <div id="dialog-left"></div>
     <div id="dialog-right"></div>
