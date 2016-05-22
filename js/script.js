@@ -15,22 +15,27 @@ function getParser() {
 }
 
 function Script() {
-}
-
-Script.prototype.play = function (scriptPath) {
-    var self = this;
-    this.nextEvent = 0;
     this.createRenderer();
     this.player = new Player(this.stage);
     this.player.onend = this.playNextEvent.bind(this);
     this.bgPlayer = new Player(this.stage);
     this.bgPlayer.onend = this.playNextBgAnim.bind(this);
-    return this.loadScript(scriptPath).then(function () {
-        return self.preloadAnims().then(function () {
-            self.playNextEvent();
-            self.gameLoop();
-        });
-    });
+}
+
+Script.prototype.play = function () {
+    if (!this.events) {
+        throw new Error('Script not compiled');
+    }
+    if (playing) {
+        return;
+    }
+    this.playing = true;
+    this.effectiveStartTime = new Date().getTime() - this.scriptTime;
+    this.gameLoop();
+};
+
+Script.prototype.pause = function () {
+    this.playing = false;
 };
 
 Script.prototype.createRenderer = function () {
@@ -107,8 +112,12 @@ Script.prototype.preloadAnims = function () {
 };
 
 Script.prototype.gameLoop = function () {
-    this.player.update();
-    this.bgPlayer.update();
+    if (!this.playing) {
+        return;
+    }
+    this.scriptTime = new Date().getTime() - this.effectiveStartTime;
+    this.player.update(this.scriptTime);
+    this.bgPlayer.update(this.scriptTime);
     this.renderer.render(this.stage);
     requestAnimationFrame(this.gameLoop.bind(this));
 };
@@ -125,7 +134,7 @@ Script.prototype.playNextEvent = function () {
 
         if (evt.event.type === 'play') {
             var anim = evt.event.anim;
-            this.player.play(anim);
+            this.player.play(anim, this.scriptTime);
             break;
         }
         else if (evt.event.type === 'dialog') {
@@ -148,7 +157,7 @@ Script.prototype.playNextEvent = function () {
 
 Script.prototype.playNextBgAnim = function () {
     if (this.bgAnims) {
-        this.bgPlayer.play(this.bgAnims[this.nextBgAnim]);
+        this.bgPlayer.play(this.bgAnims[this.nextBgAnim], this.scriptTime);
         this.nextBgAnim++;
         if (this.nextBgAnim >= this.bgAnims.length) {
             this.nextBgAnim = 0;
@@ -165,7 +174,8 @@ Script.prototype.updateDialog = function (pos, dialog) {
     }
 };
 
-Script.prototype.loadScript = function (scriptPath) {
+Script.prototype.load = function (scriptPath) {
+    this.playing = false;
     var self = this;
 
 	return $.get('anim/anims.json').then(function (manifest) {
@@ -174,8 +184,23 @@ Script.prototype.loadScript = function (scriptPath) {
 	    return $.get(scriptPath).then(function (scriptSrc) {
 	        return getParser().then(function (parser) {
 	            self.root = parser.parse(scriptSrc);
-                self.events = compileScript('2016-01-01', manifest, self.root);
 	        });
 	    });
 	});
 };
+
+Script.prototype.compile = function (date) {
+    if (!date) {
+        throw new Error('Must specify date');
+    }
+    this.playing = false;
+    this.events = compileScript(date, this.manifest, this.root);
+
+    this.nextEvent = 0;
+    this.scriptTime = 0;
+
+    var self = this;
+    return self.preloadAnims().then(function () {
+        self.playNextEvent();
+    });
+}

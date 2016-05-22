@@ -14,12 +14,6 @@
   <script src="js/player.js"></script>
   <script src="js/script.js"></script>
   <script src="js/controls.js"></script>
-  <script>
-  $(function () {
-    var script = new Script();
-    script.play('script.benji');
-  });
-  </script>
   <style>
   body {
     font-family: Courier, "Courier New", monospace;
@@ -87,7 +81,8 @@
     <div class="buttons">
       <i class="icon-previous2"></i>
       <i class="icon-backward2"></i>
-      <i class="icon-pause2"></i>
+      <i class="icon-pause2" data-bind="visible: playing, click: pause"></i>
+      <i class="icon-play3" data-bind="visible: !playing(), click: play"></i>
       <i class="icon-forward3"></i>
       <i class="icon-next2"></i>
     </div>
