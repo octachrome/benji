@@ -16,11 +16,21 @@ function getParser() {
 
 function Script() {
     this.createRenderer();
+    this.bgEvents = [];
+    this.nextBgEvent = [];
+    this.bgPlayers = [
+        this.createBgPlayer(0),
+        this.createBgPlayer(1)
+    ];
     this.player = new Player(this.stage);
     this.player.onend = this.playNextEvent.bind(this);
-    this.bgPlayer = new Player(this.stage);
-    this.bgPlayer.onend = this.playNextBgAnim.bind(this);
 }
+
+Script.prototype.createBgPlayer = function (thread, hidden) {
+    var player = new Player(this.stage, hidden);
+    player.onend = this.playNextBgEvent.bind(this, thread);
+    return player;
+};
 
 Script.prototype.play = function () {
     if (!this.events) {
@@ -49,35 +59,9 @@ Script.prototype.createRenderer = function () {
 Script.prototype.preloadAnims = function () {
     var anims = {};
 
-    // Always keep the current background animation around.
-    if (this.bgAnims) {
-        this.bgAnims.forEach(function (anim) {
-            anims[anim] = 1;
-        });
-    }
-
-    var duration = 0;
-    var i = this.nextEvent;
-
-    while (duration < PRELOAD_MS) {
-        var evt = this.events[i];
-
-        if (evt.event.type === 'play') {
-            var anim = evt.event.anim;
-            anims[anim] = 1;
-        }
-        else if (evt.event.type === 'background') {
-            evt.event.anims.forEach(function (anim) {
-                anims[anim] = 1;
-            });
-        }
-
-        duration += evt.duration;
-        i++;
-        if (i >= this.events.length) {
-            i = 0;
-        }
-    }
+    collectAnimsToPreload(anims, this.bgEvents[0], this.nextBgEvent[0]);
+    collectAnimsToPreload(anims, this.bgEvents[1], this.nextBgEvent[1]);
+    collectAnimsToPreload(anims, this.events, this.nextEvent);
 
     var resourcesNeeded = Object.keys(anims).map(function (anim) {
         return 'anim/' + anim + '.json';
@@ -111,20 +95,49 @@ Script.prototype.preloadAnims = function () {
     }
 };
 
+function collectAnimsToPreload(anims, events, startEvent) {
+    if (!events || events.length === 0) {
+        return;
+    }
+    var duration = 0;
+    var i = startEvent;
+
+    while (duration < PRELOAD_MS) {
+        var evt = events[i];
+
+        if (evt.event.type === 'play') {
+            var anim = evt.event.anim;
+            anims[anim] = 1;
+        }
+        else if (evt.event.type === 'background') {
+            collectAnimsToPreload(anims, evt.event.events, 0);
+        }
+
+        duration += evt.duration;
+        i++;
+        if (i >= events.length) {
+            i = 0;
+        }
+    }
+}
+
 Script.prototype.gameLoop = function () {
     if (!this.playing) {
         return;
     }
     this.scriptTime = new Date().getTime() - this.effectiveStartTime;
-    this.player.update(this.scriptTime);
-    this.bgPlayer.update(this.scriptTime);
+    var self = this;
+    this.bgPlayers.forEach(function (player) {
+        player.update(self.scriptTime);
+    });
+    this.player.update(self.scriptTime);
     this.renderer.render(this.stage);
     requestAnimationFrame(this.gameLoop.bind(this));
 };
 
-Script.prototype.playNextEvent = function (idx) {
-    if (idx) {
-        this.nextEvent = idx;
+Script.prototype.playNextEvent = function (eventIdx) {
+    if (eventIdx) {
+        this.nextEvent = eventIdx;
     }
     var self = this;
     return this.preloadAnims().then(function () {
@@ -147,7 +160,7 @@ Script.prototype.playNextEvent = function (idx) {
                 self.updateDialog(evt.event.pos, '');
             }
             else if (evt.event.type === 'background') {
-                self.setBg(evt.event.anims);
+                self.setBg(evt.event.thread, evt.event.events);
             }
             else {
                 console.error('Unknown event: ' + evt.event.type);
@@ -157,20 +170,42 @@ Script.prototype.playNextEvent = function (idx) {
     });
 };
 
-Script.prototype.setBg = function (anims) {
-    this.bgAnims = anims;
-    this.nextBgAnim = 0;
-    this.playNextBgAnim();
+Script.prototype.setBg = function (thread, events) {
+    this.bgEvents[thread] = events;
+    this.nextBgEvent[thread] = 0;
+    this.playNextBgEvent(thread);
 };
 
-Script.prototype.playNextBgAnim = function () {
-    if (this.bgAnims) {
-        this.bgPlayer.play(this.bgAnims[this.nextBgAnim], this.scriptTime);
-        this.nextBgAnim++;
-        if (this.nextBgAnim >= this.bgAnims.length) {
-            this.nextBgAnim = 0;
-        }
+Script.prototype.playNextBgEvent = function (thread) {
+    var self = this;
+    if (!this.bgEvents[thread]) {
+        return;
     }
+    return this.preloadAnims().then(function () {
+        while (true) {
+            var evt = self.bgEvents[thread][self.nextBgEvent[thread]];
+            self.nextBgEvent[thread]++;
+            if (self.nextBgEvent[thread] >= self.bgEvents[thread].length) {
+                self.nextBgEvent[thread] = 0;
+            }
+
+            if (evt.event.type === 'play') {
+                var anim = evt.event.anim;
+                self.bgPlayers[thread].play(anim, self.scriptTime);
+                break;
+            }
+            else if (evt.event.type === 'dialog') {
+                self.updateDialog(evt.event.pos, evt.event.dialog);
+            }
+            else if (evt.event.type === 'clear-dialog') {
+                self.updateDialog(evt.event.pos, '');
+            }
+            else if (evt.event.type !== 'background') {
+                console.error('Unknown event: ' + evt.event.type);
+                break;
+            }
+        }
+    });
 };
 
 Script.prototype.updateDialog = function (pos, dialog) {

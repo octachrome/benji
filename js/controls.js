@@ -23,7 +23,7 @@ function ViewModel() {
 
     self.gotoEvent = function (event) {
         if (event.bgAnims) {
-            self.script.setBg(event.bgAnims);
+            // self.script.setBg(event.bgAnims);
         }
         self.script.playNextEvent(event.index);
     };
@@ -35,7 +35,7 @@ function makeEvents(events) {
     var lastBgAnims;
     events.forEach(function (event, idx) {
         if (event.event && event.event.type === 'background') {
-            lastBgAnims = event.event.anims;
+            // lastBgAnims = event.event.anims;
         }
         if (event.event && event.event.anim) {
             var match = event.event.anim.match(/(.*)-[0-9]+$/);

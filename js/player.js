@@ -1,5 +1,8 @@
-function Player(stage) {
-    this.stage = stage;
+function Player(stage, hidden) {
+    this.sprite = new PIXI.Sprite();
+    if (!hidden) {
+        stage.addChild(this.sprite);
+    }
 }
 
 Player.prototype.play = function(animName, startTime, repeat) {
@@ -10,15 +13,7 @@ Player.prototype.play = function(animName, startTime, repeat) {
     this.textures = resource.textures;
     this.textureNames = Object.keys(this.textures).sort();
     this.startTime = startTime;
-
-    if (!this.sprite) {
-        this.sprite = new PIXI.Sprite(this.textures[this.textureNames[0]]);
-        this.stage.addChild(this.sprite);
-    }
-    else {
-        this.sprite.texture = this.textures[this.textureNames[0]];
-    }
-
+    this.sprite.texture = this.textures[this.textureNames[0]];
     this.playing = true;
     this.repeat = repeat;
 };

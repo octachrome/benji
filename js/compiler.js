@@ -23,9 +23,9 @@ function dateSeed(date) {
     return seed;
 }
 
-function Compiler(chance, manifest) {
+function Compiler(chance, manifest, offset) {
     // 7am in millis
-    this.offset = ms('7 hours');
+    this.offset = offset || ms('7 hours');
     this.chance = chance;
     this.events = [];
     this.manifest = manifest;
@@ -164,7 +164,20 @@ Compiler.prototype.compile = function(script, ctx) {
                 this.compile(script.else, ctx);
             }
         }
-        else if (script.cmd !== 'else') {
+        else if (script.cmd === 'background') {
+            var bgEvents;
+            if (script.child) {
+                var bgCompiler = new Compiler(this.chance, this.manifest);
+                bgCompiler.compileRoot(script.child);
+                bgEvents = bgCompiler.events;
+            }
+            this.addEvent({
+                type: 'background',
+                thread: script.args[0],
+                events: bgEvents || []
+            });
+        }
+        else if (script.cmd !== 'else' && script.cmd !== 'nothing') {
             console.error('Unknown command: ' + script.cmd);
         }
     }
