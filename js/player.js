@@ -1,28 +1,48 @@
 function Player(stage, hidden) {
     this.sprite = new PIXI.Sprite();
+    this.sprite.visible = false;
     if (!hidden) {
         stage.addChild(this.sprite);
     }
 }
 
-Player.prototype.play = function(animName, startTime, repeat) {
+Player.prototype.play = function (animName, startTime, repeat) {
     var resource = PIXI.loader.resources['anim/' + animName + '.json'];
     if (!resource) {
         throw new Error('Animation not loaded: ' + animName);
     }
     this.textures = resource.textures;
     this.textureNames = Object.keys(this.textures).sort();
+    this.playingNothingFor = null;
     this.startTime = startTime;
     this.sprite.texture = this.textures[this.textureNames[0]];
+    this.sprite.visible = true;
     this.playing = true;
     this.repeat = repeat;
 };
 
-Player.prototype.update = function(time) {
+Player.prototype.playNothing = function (duration, startTime) {
+    this.sprite.visible = false;
+    this.playingNothingFor = duration;
+    this.startTime = startTime;
+    this.playing = true;
+};
+
+Player.prototype.update = function (time) {
     if (!this.playing) {
         return;
     }
     var elapsedTime = time - this.startTime;
+
+    if (this.playingNothingFor) {
+        if (elapsedTime >= this.playingNothingFor) {
+            this.playing = false;
+            this.playingNothingFor = null;
+            this.onend && this.onend();
+        }
+        return;
+    }
+
     var frame = Math.floor(elapsedTime * FRAME_RATE / 1000);
     if (frame >= this.textureNames.length) {
         if (this.repeat) {

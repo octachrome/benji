@@ -162,6 +162,10 @@ Script.prototype.playNextEvent = function (eventIdx) {
             else if (evt.event.type === 'background') {
                 self.setBg(evt.event.thread, evt.event.events);
             }
+            else if (evt.event.type === 'nothing') {
+                self.player.playNothing(evt.duration, self.scriptTime);
+                break;
+            }
             else {
                 console.error('Unknown event: ' + evt.event.type);
                 break;
@@ -199,6 +203,10 @@ Script.prototype.playNextBgEvent = function (thread) {
             }
             else if (evt.event.type === 'clear-dialog') {
                 self.updateDialog(evt.event.pos, '');
+            }
+            else if (evt.event.type === 'nothing') {
+                self.bgPlayers[thread].playNothing(evt.duration, self.scriptTime);
+                break;
             }
             else if (evt.event.type !== 'background') {
                 console.error('Unknown event: ' + evt.event.type);

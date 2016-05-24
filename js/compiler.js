@@ -58,11 +58,17 @@ function parseTime(time) {
 
 Compiler.prototype.addEvent = function(event, frames) {
     var ms = (frames || 0) / FRAME_RATE * 1000;
-    this.events.push({
-        time: this.offset,
-        event: event,
-        duration: ms
-    });
+    var lastEvent = this.events[this.events.length - 1];
+    if (event.type === 'nothing' && lastEvent && lastEvent.event && lastEvent.event.type === 'nothing') {
+        lastEvent.duration += ms;
+    }
+    else {
+        this.events.push({
+            time: this.offset,
+            event: event,
+            duration: ms
+        });
+    }
     this.offset += ms;
 }
 
@@ -177,7 +183,12 @@ Compiler.prototype.compile = function(script, ctx) {
                 events: bgEvents || []
             });
         }
-        else if (script.cmd !== 'else' && script.cmd !== 'nothing') {
+        else if (script.cmd === 'nothing') {
+            this.addEvent({
+                type: 'nothing'
+            }, 1);
+        }
+        else if (script.cmd !== 'else') {
             console.error('Unknown command: ' + script.cmd);
         }
     }
