@@ -147,9 +147,7 @@ Script.prototype.playNextEvent = function (idx) {
                 self.updateDialog(evt.event.pos, '');
             }
             else if (evt.event.type === 'background') {
-                self.bgAnims = evt.event.anims;
-                self.nextBgAnim = 0;
-                self.playNextBgAnim();
+                self.setBg(evt.event.anims);
             }
             else {
                 console.error('Unknown event: ' + evt.event.type);
@@ -157,6 +155,12 @@ Script.prototype.playNextEvent = function (idx) {
             }
         }
     });
+};
+
+Script.prototype.setBg = function (anims) {
+    this.bgAnims = anims;
+    this.nextBgAnim = 0;
+    this.playNextBgAnim();
 };
 
 Script.prototype.playNextBgAnim = function () {

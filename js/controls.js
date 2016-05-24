@@ -22,22 +22,29 @@ function ViewModel() {
     });
 
     self.gotoEvent = function (event) {
+        if (event.bgAnims) {
+            self.script.setBg(event.bgAnims);
+        }
         self.script.playNextEvent(event.index);
-        console.log(arguments);
     };
 }
 
 function makeEvents(events) {
     var results = [];
     var lastAnim;
+    var lastBgAnims;
     events.forEach(function (event, idx) {
+        if (event.event && event.event.type === 'background') {
+            lastBgAnims = event.event.anims;
+        }
         if (event.event && event.event.anim) {
             var match = event.event.anim.match(/(.*)-[0-9]+$/);
             if (match && match[1] != lastAnim) {
                 results.push({
                     time: new Date(event.time).toTimeString().substr(0, 8),
                     name: match[1],
-                    index: idx
+                    index: idx,
+                    bgAnims: lastBgAnims
                 });
                 lastAnim = match[1];
             }
