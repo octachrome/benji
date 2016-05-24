@@ -26,7 +26,7 @@ Script.prototype.play = function () {
     if (!this.events) {
         throw new Error('Script not compiled');
     }
-    if (playing) {
+    if (this.playing) {
         return;
     }
     this.playing = true;
@@ -122,37 +122,41 @@ Script.prototype.gameLoop = function () {
     requestAnimationFrame(this.gameLoop.bind(this));
 };
 
-Script.prototype.playNextEvent = function () {
-    this.preloadAnims();
-
-    while (true) {
-        var evt = this.events[this.nextEvent];
-        this.nextEvent++;
-        if (this.nextEvent >= this.events.length) {
-            this.nextEvent = 0;
-        }
-
-        if (evt.event.type === 'play') {
-            var anim = evt.event.anim;
-            this.player.play(anim, this.scriptTime);
-            break;
-        }
-        else if (evt.event.type === 'dialog') {
-            this.updateDialog(evt.event.pos, evt.event.dialog);
-        }
-        else if (evt.event.type === 'clear-dialog') {
-            this.updateDialog(evt.event.pos, '');
-        }
-        else if (evt.event.type === 'background') {
-            this.bgAnims = evt.event.anims;
-            this.nextBgAnim = 0;
-            this.playNextBgAnim();
-        }
-        else {
-            console.error('Unknown event: ' + evt.event.type);
-            break;
-        }
+Script.prototype.playNextEvent = function (idx) {
+    if (idx) {
+        this.nextEvent = idx;
     }
+    var self = this;
+    return this.preloadAnims().then(function () {
+        while (true) {
+            var evt = self.events[self.nextEvent];
+            self.nextEvent++;
+            if (self.nextEvent >= self.events.length) {
+                self.nextEvent = 0;
+            }
+
+            if (evt.event.type === 'play') {
+                var anim = evt.event.anim;
+                self.player.play(anim, self.scriptTime);
+                break;
+            }
+            else if (evt.event.type === 'dialog') {
+                self.updateDialog(evt.event.pos, evt.event.dialog);
+            }
+            else if (evt.event.type === 'clear-dialog') {
+                self.updateDialog(evt.event.pos, '');
+            }
+            else if (evt.event.type === 'background') {
+                self.bgAnims = evt.event.anims;
+                self.nextBgAnim = 0;
+                self.playNextBgAnim();
+            }
+            else {
+                console.error('Unknown event: ' + evt.event.type);
+                break;
+            }
+        }
+    });
 };
 
 Script.prototype.playNextBgAnim = function () {
@@ -200,7 +204,5 @@ Script.prototype.compile = function (date) {
     this.scriptTime = 0;
 
     var self = this;
-    return self.preloadAnims().then(function () {
-        self.playNextEvent();
-    });
-}
+    return self.playNextEvent();
+};
