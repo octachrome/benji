@@ -164,7 +164,7 @@ Compiler.prototype.compile = function(script, ctx) {
                 this.compile(script.else, ctx);
             }
         }
-        else {
+        else if (script.cmd !== 'else') {
             console.error('Unknown command: ' + script.cmd);
         }
     }
