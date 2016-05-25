@@ -90,7 +90,7 @@
         // The line before the indent could also be part of the sequence.
         // (It could also be undefined.)
         var prev = cur.children[cur.children.length - 1];
-        if (prev && prev.type === 'Cmd' && /^repeat|^maybe|^background$/.test(prev.cmd)) {
+        if (prev && prev.type === 'Cmd' && /^repeat|^maybe|^background|^sub$/.test(prev.cmd)) {
           prev.child = seq;
         }
         else if (prev && prev.type === 'Cmd' && prev.cmd === 'else') {
@@ -197,7 +197,7 @@ Element = Simple / Struct
 Struct = Option
 
 // Simple elements
-Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / Set / Maybe / Else / Background / Nothing
+Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / Set / Maybe / Else / Background / Sub / Call / Nothing
 
 // An option that forms part of a choice between several elements
 Option = "|" element:Simple { return element.setOption(); }
@@ -227,6 +227,10 @@ Else = ":else" { return mkCmd('else'); }
 Nothing = ":nothing" { return mkCmd('nothing'); }
 
 Background = ":background" __ bg:[0-9]+ { return mkCmd('background', parseInt(flatten(bg))); }
+
+Sub = ":sub" __ name:[a-zA-Z_0-9-]+ { return mkCmd('sub', flatten(name)); }
+
+Call = ":call" __ sub:[a-zA-Z_0-9-]+ { return mkCmd('call', flatten(sub)); }
 
 Comment = "#" NCR*
 

@@ -23,13 +23,14 @@ function dateSeed(date) {
     return seed;
 }
 
-function Compiler(chance, manifest, offset) {
+function Compiler(chance, manifest, subs, offset) {
     // 7am in millis
     this.offset = offset || ms('7 hours');
     this.chance = chance;
     this.events = [];
     this.manifest = manifest;
     this.vars = {};
+    this.subs = subs || {};
 }
 
 function compileScript(dateStr, manifest, script) {
@@ -129,10 +130,6 @@ Compiler.prototype.compile = function(script, ctx) {
     else if (script.type === 'Cmd') {
         if (script.cmd === 'set') {
             this.vars[script.args[0]] = script.args[1];
-            if (script.args[0] === 'background') {
-                var bg = script.args[1];
-                this.addBackgroundEvent(bg);
-            }
         }
         else if (script.cmd === 'play') {
             var anim = script.args[0];
@@ -170,10 +167,22 @@ Compiler.prototype.compile = function(script, ctx) {
                 this.compile(script.else, ctx);
             }
         }
+        else if (script.cmd === 'sub') {
+            this.subs[script.args[0]] = script.child;
+        }
+        else if (script.cmd === 'call') {
+            var sub = this.subs[script.args[0]];
+            if (sub) {
+                this.compile(sub, ctx);
+            }
+            else {
+                console.error('Unknown subroutine: ' + script.args[0]);
+            }
+        }
         else if (script.cmd === 'background') {
             var bgEvents;
             if (script.child) {
-                var bgCompiler = new Compiler(this.chance, this.manifest);
+                var bgCompiler = new Compiler(this.chance, this.manifest, this.subs);
                 bgCompiler.compileRoot(script.child);
                 bgEvents = bgCompiler.events;
             }
@@ -237,19 +246,4 @@ Compiler.prototype.addAnimEvents = function (animName, frames) {
             }, anim.segments[j].frames);
         }
     }
-}
-
-Compiler.prototype.addBackgroundEvent = function (animName) {
-    var anim = this.manifest[animName];
-    if (!anim) {
-        console.error('Skipped unknown animation ' + animName);
-    }
-    var anims = [];
-    for (var i = 0; i < anim.segments.length; i++) {
-        anims.push(anim.segments[i].name);
-    }
-    this.addEvent({
-        type: 'background',
-        anims: anims
-    });
 }
