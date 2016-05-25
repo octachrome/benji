@@ -10,10 +10,14 @@ function ViewModel() {
 
     ko.computed(function () {
         if (self.ready()) {
-          self.script.compile(self.date()).then(function () {
-              self.events(makeEvents(self.script.events));
-              self.play();
-          });
+            self.events([]);
+            var date = self.date();
+            setTimeout(function () {
+                self.script.compile(date).then(function () {
+                    self.events(makeEvents(self.script.events));
+                    self.play();
+                });
+            }, 50);
         }
     });
 

@@ -61,6 +61,11 @@
     width: 400px;
     background: rgba(200, 200, 200, .5);
     padding: 40px 10px 10px 10px;
+  }
+  div.events-list {
+    position: absolute;
+    top: 40px;
+    bottom: 0;
     overflow-y: auto;
   }
   </style>
@@ -72,15 +77,19 @@
   <div class="sidebar" data-bind="visible: sidebarVisible">
     <div class="menuHolder" data-bind="visible: sidebarVisible">
       <i class="icon-menu" data-bind="click: hideSidebar"></i>
+      <input data-bind="value: date"/>
     </div>
-    <!-- ko foreach: events -->
-    <div>
-      <a href="#" data-bind="click: $parent.gotoEvent">
-        <span data-bind="text: time"></span>
-        <span data-bind="text: name"></span>
-      </a>
+    <div class="events-list">
+      <div data-bind="visible: events().length === 0">Loading...</div>
+      <!-- ko foreach: events -->
+      <div>
+        <a href="#" data-bind="click: $parent.gotoEvent">
+          <span data-bind="text: time"></span>
+          <span data-bind="text: name"></span>
+        </a>
+      </div>
+      <!-- /ko -->
     </div>
-    <!-- /ko -->
   </div>
   <div id="target">
     <div id="dialog-left"></div>
