@@ -22,8 +22,12 @@ function ViewModel() {
     });
 
     self.gotoEvent = function (event) {
-        if (event.bgAnims) {
-            // self.script.setBg(event.bgAnims);
+        if (event.bgEvents) {
+            event.bgEvents.forEach(function (events, thread) {
+                if (events) {
+                    self.script.setBg(thread, events);
+                }
+            });
         }
         self.script.playNextEvent(event.index);
     };
@@ -32,10 +36,10 @@ function ViewModel() {
 function makeEvents(events) {
     var results = [];
     var lastAnim;
-    var lastBgAnims;
+    var lastBgEvents = [];
     events.forEach(function (event, idx) {
         if (event.event && event.event.type === 'background') {
-            // lastBgAnims = event.event.anims;
+            lastBgEvents[event.event.thread] = event.event.events;
         }
         if (event.event && event.event.anim) {
             var match = event.event.anim.match(/(.*)-[0-9]+$/);
@@ -44,7 +48,7 @@ function makeEvents(events) {
                     time: new Date(event.time).toTimeString().substr(0, 8),
                     name: match[1],
                     index: idx,
-                    bgAnims: lastBgAnims
+                    bgEvents: lastBgEvents.slice()
                 });
                 lastAnim = match[1];
             }
