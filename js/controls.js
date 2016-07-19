@@ -4,7 +4,7 @@ function ViewModel() {
     self.playing = ko.observable();
     self.events = ko.observableArray();
     self.ready = ko.observable(false);
-    self.date = ko.observable('2016-01-01');
+    self.date = ko.observable(new Date().toISOString().substr(0, 16).replace('T', ' '));
 
     self.script = new Script();
 

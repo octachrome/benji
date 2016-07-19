@@ -135,6 +135,16 @@ Script.prototype.gameLoop = function () {
     requestAnimationFrame(this.gameLoop.bind(this));
 };
 
+Script.prototype.gotoTime = function (time) {
+    for (var i = 0; i < this.events.length; i++) {
+        var evt = self.events[self.nextEvent];
+        if (evt.time >= time) {
+            return this.playNextEvent(i);
+        }
+    }
+    return Promise.reject(new Error('No events after time ' + time));
+};
+
 Script.prototype.playNextEvent = function (eventIdx) {
     if (eventIdx) {
         this.nextEvent = eventIdx;
