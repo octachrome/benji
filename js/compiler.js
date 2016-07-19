@@ -33,13 +33,9 @@ function Compiler(chance, manifest, subs, offset) {
     this.subs = subs || {};
 }
 
-function compileScript(dateStr, manifest, script) {
-    var d = new Date(dateStr);
-    if (isNaN(d.getTime())) {
-        throw new Error('invalid date');
-    }
-    // Find midnight GMT on that date.
-    var date = new Date(d.toDateString());
+function compileScript(date, manifest, script) {
+    // Find midnight GMT on the date.
+    date = new Date(date.toDateString());
     var seed = dateSeed(date);
     var chance = new Chance(seed);
 

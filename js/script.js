@@ -135,10 +135,20 @@ Script.prototype.gameLoop = function () {
     requestAnimationFrame(this.gameLoop.bind(this));
 };
 
-Script.prototype.gotoTime = function (time) {
+Script.prototype.playEventAfterTime = function (time) {
+    var self = this;
+    var lastBgEvents = [];
     for (var i = 0; i < this.events.length; i++) {
-        var evt = self.events[self.nextEvent];
+        var evt = this.events[i];
+        if (evt.event && evt.event.type === 'background') {
+            lastBgEvents[evt.event.thread] = evt.event.events;
+        }
         if (evt.time >= time) {
+            lastBgEvents.forEach(function (events, thread) {
+                if (events) {
+                    self.setBg(thread, events);
+                }
+            });
             return this.playNextEvent(i);
         }
     }
@@ -250,16 +260,21 @@ Script.prototype.load = function (scriptPath) {
 	});
 };
 
-Script.prototype.compile = function (date) {
-    if (!date) {
+Script.prototype.compile = function (dateStr) {
+    if (!dateStr) {
         throw new Error('Must specify date');
     }
+    var date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+        throw new Error('invalid date');
+    }
+    var time = ((date.getHours() * 60 + date.getMinutes()) * 60 + date.getSeconds()) * 1000;
+
     this.playing = false;
     this.events = compileScript(date, this.manifest, this.root);
 
     this.nextEvent = 0;
     this.scriptTime = 0;
 
-    var self = this;
-    return self.playNextEvent();
+    return this.playEventAfterTime(time);
 };
