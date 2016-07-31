@@ -1,4 +1,4 @@
-var PRELOAD_MS = 5 * 1000;
+var PRELOAD_MS = 3 * 1000;
 
 var parser;
 
@@ -24,6 +24,7 @@ function Script() {
     ];
     this.player = new Player(this.stage);
     this.player.onend = this.playNextEvent.bind(this);
+    this.loadCallbacks = [];
 }
 
 Script.prototype.createBgPlayer = function (thread, hidden) {
@@ -66,34 +67,60 @@ Script.prototype.preloadAnims = function () {
     var resourcesNeeded = Object.keys(anims).map(function (anim) {
         return 'anim/' + anim + '.json';
     });
-    var loader = PIXI.loader;
-    var resourcesPresent = Object.keys(loader.resources).filter(function (resource) {
-        return !/_image$/.test(resource);
-    });
+    return this.ensureResourcesLoaded(resourcesNeeded);
+};
 
-    var mustLoad = _.difference(resourcesNeeded, resourcesPresent);
-    var mustUnload = _.difference(resourcesPresent, resourcesNeeded);
-/*
-    mustUnload.forEach(function (res) {
-        var resource = PIXI.loader.resources[res];
-        var firstTexture = resource.textures[Object.keys(resource.textures)[0]];
-        firstTexture.destroy(true);
-        delete loader.resources[res];
-        delete loader.resources[res + '_image'];
+Script.prototype.ensureResourcesLoaded = function (resourcesNeeded) {
+    var loader = PIXI.loader;
+    var mustLoad = [];
+    var mustWaitFor = [];
+    resourcesNeeded.forEach(function (resourceName) {
+        var resource = loader.resources[resourceName];
+        if (!resource) {
+            mustLoad.push(resourceName);
+        }
+        else if (!resource.data) {
+            mustWaitFor.push(resourceName);
+        }
     });
-*/
-    if (mustLoad.length) {
-        loader.add(mustLoad);
-        return new Promise(function (resolve, reject) {
-            loader.load(function () {
-                resolve();
-            });
+    if (mustWaitFor.length || mustLoad.length) {
+        var self = this;
+        return new Promise(function (resolve) {
+            self.loadCallbacks.push(resolve);
+            resolve.resourcesNeeded = resourcesNeeded;
+            if (mustLoad.length) {
+                loader.add(mustLoad);
+                loader.load(self.onResourcesLoaded.bind(self));
+            }
         });
     }
     else {
         return Promise.resolve();
     }
-};
+}
+
+Script.prototype.onResourcesLoaded = function () {
+    for (var i = 0; i < this.loadCallbacks.length; i++) {
+        var callback = this.loadCallbacks[i];
+        if (isAllLoaded(callback.resourcesNeeded)) {
+            this.loadCallbacks.splice(i, 1);
+            i--;
+            callback();
+        }
+    }
+
+    function isAllLoaded(resourcesNeeded) {
+        var loader = PIXI.loader;
+        for (var i = 0; i < resourcesNeeded.length; i++) {
+            var resourceName = resourcesNeeded[i];
+            var resource = loader.resources[resourceName];
+            if (!resource || !resource.data) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
 
 function collectAnimsToPreload(anims, events, startEvent) {
     if (!events || events.length === 0) {
