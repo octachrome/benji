@@ -90,14 +90,14 @@
         // The line before the indent could also be part of the sequence.
         // (It could also be undefined.)
         var prev = cur.children[cur.children.length - 1];
-        if (prev && prev.type === 'Cmd' && /^repeat|^maybe|^background|^sub$/.test(prev.cmd)) {
+        if (prev && prev.type === 'Cmd' && /^(repeat|if|maybe|background|sub)/.test(prev.cmd)) {
           prev.child = seq;
         }
         else if (prev && prev.type === 'Cmd' && prev.cmd === 'else') {
           var prevPrev = cur.children[cur.children.length - 2];
 
-          if (!prevPrev || prevPrev.type !== 'Cmd' || prevPrev.cmd !== 'maybe') {
-            error("Unexpected 'else' - can only occur after 'maybe'.");
+          if (!prevPrev || prevPrev.type !== 'Cmd' || !/^(if|maybe)$/.test(prevPrev.cmd)) {
+            error("Unexpected 'else' - can only occur after 'if' or 'maybe'.");
           }
 
           prevPrev.else = seq;
@@ -197,7 +197,7 @@ Element = Simple / Struct
 Struct = Option
 
 // Simple elements
-Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / Set / Maybe / Else / Background / Sub / Call / Nothing
+Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / Set / Maybe / If / Else / Background / Sub / Call / Nothing
 
 // An option that forms part of a choice between several elements
 Option = "|" element:Simple { return element.setOption(); }
@@ -217,12 +217,14 @@ TimeOfDay = [0-9] [0-9]? ":" [0-9] [0-9]
 Play = ":play" __ chars:[a-zA-Z_0-9-]+ { return mkCmd('play', flatten(chars)); }
 
 // Set variable command
-Set = ":set" __ name:[a-zA-Z_0-9]+ value:SetValue? { return mkCmd('set', flatten(name), flatten(value)); }
-SetValue = __ value:NCR+ { return value; }
+Set = ":set" __ name:[a-zA-Z_0-9]+ value:Expression? { return mkCmd('set', flatten(name), flatten(value)); }
+Expression = __ value:NCR+ { return value; }
 
 // Maybe/else command
 Maybe = ":maybe" __ chance:[0-9]+ "%" { return mkCmd('maybe', parseInt(flatten(chance))); }
 Else = ":else" { return mkCmd('else'); }
+
+If = ":if" condition:Expression { return mkCmd('if', flatten(condition)); }
 
 Nothing = ":nothing" { return mkCmd('nothing'); }
 

@@ -171,6 +171,14 @@ Compiler.prototype.compile = function(script, ctx) {
                 this.compile(script.else, ctx);
             }
         }
+        else if (script.cmd === 'if') {
+            if (this.evalExpr(script.args[0])) {
+                this.compile(script.child, ctx);
+            }
+            else if (script.else) {
+                this.compile(script.else, ctx);
+            }
+        }
         else if (script.cmd === 'sub') {
             this.subs[script.args[0]] = script.child;
         }
@@ -235,8 +243,13 @@ Compiler.prototype.compile = function(script, ctx) {
 };
 
 Compiler.prototype.evalExpr = function (expr) {
-    var evaluator = new Function('$utils', '$context', 'with($utils){ with($context){ return ' + expr + '}}');
-    return evaluator({}, this.vars);
+    if (!expr || expr.trim().length === 0) {
+        return null;
+    }
+    else {
+        var evaluator = new Function('$utils', '$context', 'with($utils){ with($context){ return ' + expr + '}}');
+        return evaluator({}, this.vars);
+    }
 };
 
 Compiler.prototype.addAnimEvents = function (animName, frames) {
