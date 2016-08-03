@@ -31,6 +31,21 @@ function Compiler(chance, manifest, subs, offset) {
     this.manifest = manifest;
     this.vars = {};
     this.subs = subs || {};
+    var compiler = this;
+    this.utils = {
+        pick: function (array) {
+            return compiler.chance.pick(array);
+        },
+        maybe: function (probability) {
+            return compiler.chance.bool({likelihood: probability});
+        },
+        rand: function () {
+            return compiler.chance.random();
+        },
+        randint: function (min, max) {
+            return compiler.chance.integer({min: min, max: max});
+        }
+    }
 }
 
 function compileScript(date, manifest, script) {
@@ -248,7 +263,7 @@ Compiler.prototype.evalExpr = function (expr) {
     }
     else {
         var evaluator = new Function('$utils', '$context', 'with($utils){ with($context){ return ' + expr + '}}');
-        return evaluator({}, this.vars);
+        return evaluator(this.utils, this.vars);
     }
 };
 

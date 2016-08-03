@@ -303,5 +303,5 @@ Script.prototype.compile = function (dateStr) {
     this.nextEvent = 0;
     this.scriptTime = 0;
 
-    return this.playEventAfterTime(time);
+    return this.playEventAfterTime(0); // todo: time
 };
