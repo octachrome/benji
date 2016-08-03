@@ -126,7 +126,14 @@ Compiler.prototype.compile = function(script, ctx) {
     }
     else if (script.type === 'Cmd') {
         if (script.cmd === 'set') {
-            this.vars[script.args[0]] = script.args[1];
+            var varName = script.args[0]
+            var value = script.args[1];
+            if (varName === 'dialog_anims') {
+                this.vars[varName] = value;
+            }
+            else {
+                this.vars[varName] = this.evalExpr(value);
+            }
         }
         else if (script.cmd === 'play') {
             var anim = script.args[0];
@@ -199,9 +206,14 @@ Compiler.prototype.compile = function(script, ctx) {
         }
     }
     else if (script.type === 'Dialog') {
+        var dialog = script.dialog;
+        var match;
+        while ((match = dialog.match(/\{\{(.*?)\}\}/))) {
+            dialog = dialog.replace(match[0], this.evalExpr(match[1]));
+        }
         this.addEvent({
             type: 'dialog',
-            dialog: script.dialog,
+            dialog: dialog,
             pos: script.pos
         });
         var dialogAnim = (this.vars.dialog_anims || '').split(' ')[script.pos];
@@ -220,6 +232,11 @@ Compiler.prototype.compile = function(script, ctx) {
     else {
         console.error('Unknown script element: ' + script.type);
     }
+};
+
+Compiler.prototype.evalExpr = function (expr) {
+    var evaluator = new Function('$utils', '$context', 'with($utils){ with($context){ return ' + expr + '}}');
+    return evaluator({}, this.vars);
 };
 
 Compiler.prototype.addAnimEvents = function (animName, frames) {
