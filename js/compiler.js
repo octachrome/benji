@@ -117,7 +117,12 @@ Compiler.prototype.compileRoot = function(script) {
 
 Compiler.prototype.compile = function(script, ctx) {
     var count, until, i;
-    if (script.type === 'Seq') {
+    if (!script) {
+        this.addEvent({
+            type: 'nothing'
+        }, 1);
+    }
+    else if (script.type === 'Seq') {
         var lastCtx = {};
         for (i = 0; i < script.children.length; i++) {
             var childCtx = {};
