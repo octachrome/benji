@@ -179,7 +179,8 @@ Script.prototype.playEventAfterTime = function (time) {
             return this.playNextEvent(i);
         }
     }
-    return Promise.reject(new Error('No events after time ' + time));
+    console.warn('No events after time ' + time);
+    return this.playNextEvent();
 };
 
 Script.prototype.playNextEvent = function (eventIdx) {
@@ -303,5 +304,5 @@ Script.prototype.compile = function (dateStr) {
     this.nextEvent = 0;
     this.scriptTime = 0;
 
-    return this.playEventAfterTime(0); // todo: time
+    return this.playEventAfterTime(time);
 };
