@@ -186,6 +186,8 @@ Script.prototype.playEventAfterTime = function (time) {
 Script.prototype.playNextEvent = function (eventIdx) {
     if (eventIdx) {
         this.nextEvent = eventIdx;
+        this.updateDialog(0, '');
+        this.updateDialog(1, '');
     }
     var self = this;
     return this.preloadAnims().then(function () {
