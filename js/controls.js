@@ -4,7 +4,7 @@ function ViewModel() {
     self.playing = ko.observable();
     self.events = ko.observableArray();
     self.ready = ko.observable(false);
-    self.date = ko.observable(new Date().toISOString().substr(0, 16).replace('T', ' '));
+    self.date = ko.observable(currentDateTime());
 
     self.script = new Script();
 
@@ -35,6 +35,11 @@ function ViewModel() {
         }
         self.script.playNextEvent(event.index);
     };
+}
+
+function currentDateTime() {
+    var now = new Date();
+    return now.toISOString().substr(0, 10) + ' ' + now.toLocaleTimeString();
 }
 
 function makeEvents(events) {

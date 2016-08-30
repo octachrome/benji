@@ -191,8 +191,9 @@ Script.prototype.playNextEvent = function (eventIdx) {
     }
     var self = this;
     return this.preloadAnims().then(function () {
+        var evt;
         while (true) {
-            var evt = self.events[self.nextEvent];
+            evt = self.events[self.nextEvent];
             self.nextEvent++;
             if (self.nextEvent >= self.events.length) {
                 self.nextEvent = 0;
@@ -221,6 +222,7 @@ Script.prototype.playNextEvent = function (eventIdx) {
                 break;
             }
         }
+        self.updateTimestamp(new Date(evt.time).toTimeString().substr(0, 8));
     });
 };
 
@@ -273,6 +275,10 @@ Script.prototype.updateDialog = function (pos, dialog) {
     else if (pos === 1) {
         $('#dialog-right').text(dialog);
     }
+};
+
+Script.prototype.updateTimestamp = function (timestamp) {
+    $('#timestamp').text(timestamp);
 };
 
 Script.prototype.load = function (scriptPath) {
