@@ -246,7 +246,7 @@ Compiler.prototype.compile = function(script, ctx) {
         });
         var dialogAnim = (this.vars.dialog_anims || '').split(' ')[script.pos];
         if (dialogAnim) {
-            var frames = (script.dialog || '').length * DIALOG_SPEED;
+            var frames = (dialog || '').length * DIALOG_SPEED;
             this.addAnimEvents(dialogAnim, frames);
             this.addEvent({
                 type: 'clear-dialog',
