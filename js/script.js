@@ -7,7 +7,7 @@ function getParser() {
 		return Promise.resolve(parser);
 	}
 	else {
-		return $.get('/js/benji.pegjs').then(function (parserSrc) {
+		return $.get('js/benji.pegjs').then(function (parserSrc) {
 			parser = PEG.buildParser(parserSrc);
 			return parser;
 		});
