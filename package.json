@@ -4,6 +4,7 @@
   "description": "",
   "main": "server.js",
   "scripts": {
+    "preinstall": "npm install --ignore-scripts",
     "postinstall": "node -e \"require('grunt').cli()\""
   },
   "author": "",
