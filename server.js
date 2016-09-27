@@ -17,11 +17,9 @@ function _startServer(_animPath, _scriptPath) {
   animRoute = express.static(_animPath);
   if (!server) {
     app = express();
-    app.use('/', express.static(__dirname + '/static'));
     app.use('/preview.html', express.static(__dirname + '/static/index.html'));
-    app.use('/anim', function (req, res, next) {
-      animRoute(req, res, next);
-    });
+    app.use('/anim', animRoute);
+    app.use('/', express.static(__dirname + '/static'));
     app.use('/script.benji', function (req, res, next) {
       fs.readFile(scriptPath, function (err, data) {
         if (err) {
