@@ -3,15 +3,15 @@ var PRELOAD_MS = 3 * 1000;
 var parser;
 
 function getParser() {
-	if (parser) {
-		return Promise.resolve(parser);
-	}
-	else {
-		return $.get('js/benji.pegjs').then(function (parserSrc) {
-			parser = PEG.buildParser(parserSrc);
-			return parser;
-		});
-	}
+    if (parser) {
+        return Promise.resolve(parser);
+    }
+    else {
+        return $.get('js/benji.pegjs').then(function (parserSrc) {
+            parser = PEG.buildParser(parserSrc);
+            return parser;
+        });
+    }
 }
 
 function Script() {
@@ -285,15 +285,18 @@ Script.prototype.load = function (scriptPath) {
     this.playing = false;
     var self = this;
 
-	return $.get('anim/anims.json').then(function (manifest) {
-		self.manifest = manifest;
+    return $.get({
+        url: 'anim/anims.json',
+        dataType: 'json'
+    }).then(function (manifest) {
+        self.manifest = manifest;
 
-	    return $.get(scriptPath).then(function (scriptSrc) {
-	        return getParser().then(function (parser) {
-	            self.root = parser.parse(scriptSrc);
-	        });
-	    });
-	});
+        return $.get(scriptPath).then(function (scriptSrc) {
+            return getParser().then(function (parser) {
+                self.root = parser.parse(scriptSrc);
+            });
+        });
+    });
 };
 
 Script.prototype.compile = function (dateStr) {
