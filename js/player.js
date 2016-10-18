@@ -1,9 +1,14 @@
-function Player(stage, hidden) {
+function Player(stage, zIndex) {
     this.sprite = new PIXI.Sprite();
+    this.sprite.zIndex = zIndex || 0;
     this.sprite.visible = false;
-    if (!hidden) {
-        stage.addChild(this.sprite);
-    }
+    this.sprite.alpha = 0.8;
+    stage.addChild(this.sprite);
+    stage.children.sort(function(a, b) {
+        a.zIndex = a.zIndex || 0;
+        b.zIndex = b.zIndex || 0;
+        return a.zIndex - b.zIndex;
+    });
 }
 
 Player.prototype.play = function (animName, startTime, repeat) {

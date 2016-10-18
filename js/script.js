@@ -18,17 +18,14 @@ function Script() {
     this.createRenderer();
     this.bgEvents = [];
     this.nextBgEvent = [];
-    this.bgPlayers = [
-        this.createBgPlayer(0),
-        this.createBgPlayer(1)
-    ];
-    this.player = new Player(this.stage);
+    this.bgPlayers = [];
+    this.player = new Player(this.stage, 100);
     this.player.onend = this.playNextEvent.bind(this);
     this.loadCallbacks = [];
 }
 
-Script.prototype.createBgPlayer = function (thread, hidden) {
-    var player = new Player(this.stage, hidden);
+Script.prototype.createBgPlayer = function (thread) {
+    var player = new Player(this.stage, thread);
     player.onend = this.playNextBgEvent.bind(this, thread);
     return player;
 };
@@ -60,8 +57,10 @@ Script.prototype.createRenderer = function () {
 Script.prototype.preloadAnims = function () {
     var anims = {};
 
-    collectAnimsToPreload(anims, this.bgEvents[0], this.nextBgEvent[0]);
-    collectAnimsToPreload(anims, this.bgEvents[1], this.nextBgEvent[1]);
+    var self = this;
+    this.bgEvents.forEach(function (_, thread) {
+        collectAnimsToPreload(anims, self.bgEvents[thread], self.nextBgEvent[thread]);
+    });
     collectAnimsToPreload(anims, this.events, this.nextEvent);
 
     var resourcesNeeded = Object.keys(anims).map(function (anim) {
@@ -247,7 +246,7 @@ Script.prototype.playNextBgEvent = function (thread) {
 
             if (evt.event.type === 'play') {
                 var anim = evt.event.anim;
-                self.bgPlayers[thread].play(anim, self.scriptTime);
+                self.getBgPlayer(thread).play(anim, self.scriptTime);
                 break;
             }
             else if (evt.event.type === 'dialog') {
@@ -257,7 +256,7 @@ Script.prototype.playNextBgEvent = function (thread) {
                 self.updateDialog(evt.event.pos, '');
             }
             else if (evt.event.type === 'nothing') {
-                self.bgPlayers[thread].playNothing(evt.duration, self.scriptTime);
+                self.getBgPlayer(thread).playNothing(evt.duration, self.scriptTime);
                 break;
             }
             else if (evt.event.type !== 'background') {
@@ -267,6 +266,13 @@ Script.prototype.playNextBgEvent = function (thread) {
         }
     });
 };
+
+Script.prototype.getBgPlayer = function (thread) {
+    if (!this.bgPlayers[thread]) {
+        this.bgPlayers[thread] = this.createBgPlayer(thread);
+    }
+    return this.bgPlayers[thread];
+}
 
 Script.prototype.updateDialog = function (pos, dialog) {
     if (pos === 0) {
