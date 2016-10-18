@@ -2,7 +2,6 @@ function Player(stage, zIndex) {
     this.sprite = new PIXI.Sprite();
     this.sprite.zIndex = zIndex || 0;
     this.sprite.visible = false;
-    this.sprite.alpha = 0.8;
     stage.addChild(this.sprite);
     stage.children.sort(function(a, b) {
         a.zIndex = a.zIndex || 0;
