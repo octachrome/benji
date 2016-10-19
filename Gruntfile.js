@@ -1,5 +1,6 @@
 module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-contrib-copy');
+    grunt.loadNpmTasks('grunt-contrib-watch');
 
     grunt.initConfig({
         copy: {
@@ -48,6 +49,15 @@ module.exports = function (grunt) {
                         'static/script.benji': '../benji-data/scripts/test.benji'
                     }
                 ]
+            }
+        },
+        watch: {
+            static: {
+                files: ['js/*.js'],
+                tasks: ['static'],
+                options: {
+                    spawn: false
+                }
             }
         }
     });
