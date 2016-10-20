@@ -237,7 +237,6 @@ Script.prototype.playNextEvent = function (eventIdx) {
         self.updateTimestamp(new Date(evt.time).toTimeString().substr(0, 8));
     });
 };
-
 Script.prototype.setBg = function (thread, events) {
     this.bgEvents[thread] = events;
     this.nextBgEvent[thread] = 0;
@@ -311,13 +310,47 @@ Script.prototype.load = function (scriptPath) {
         dataType: 'json'
     }).then(function (manifest) {
         self.manifest = manifest;
+        self.scripts = {};
 
         return $.get(scriptPath).then(function (scriptSrc) {
             return getParser().then(function (parser) {
                 self.root = parser.parse(scriptSrc);
+                return self.parseIncludedScripts(self.root);
             });
         });
     });
+};
+
+Script.prototype.parseIncludedScripts = function (script) {
+    var self = this;
+    if (script.type === 'Cmd' && script.cmd === 'include') {
+        var filename = script.args[0];
+        if (!self.scripts[filename]) {
+            return $.get(filename).then(function (src) {
+                return getParser().then(function (parser) {
+                    // Double-check because of concurrency.
+                    if (!self.scripts[filename]) {
+                        self.scripts[filename] = parser.parse(src);
+                    }
+                });
+            });
+        }
+    }
+    else {
+        if (script.child) {
+            return this.parseIncludedScripts(script.child);
+        }
+        else if (script.else) {
+            return this.parseIncludedScripts(script.else);
+        }
+        else if (script.children) {
+            return Promise.all(script.children.map(function (child) {
+                return self.parseIncludedScripts(child);
+            }));
+        }
+    }
+
+    return Promise.resolve();
 };
 
 Script.prototype.compile = function (dateStr) {
@@ -331,7 +364,7 @@ Script.prototype.compile = function (dateStr) {
     var time = ((date.getHours() * 60 + date.getMinutes()) * 60 + date.getSeconds()) * 1000;
 
     this.playing = false;
-    this.events = compileScript(date, this.manifest, this.root);
+    this.events = compileScript(date, this.manifest, this.root, this.scripts);
 
     this.nextEvent = 0;
     this.scriptTime = 0;

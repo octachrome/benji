@@ -197,7 +197,7 @@ Element = Simple / Struct
 Struct = Option
 
 // Simple elements
-Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / Set / Maybe / If / Else / Background / Sub / Call / Nothing
+Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / Set / Maybe / If / Else / Background / Sub / Call / Include / Nothing
 
 // An option that forms part of a choice between several elements
 Option = "|" element:Simple { return element.setOption(); }
@@ -233,6 +233,8 @@ Background = ":background" __ bg:[0-9]+ { return mkCmd('background', parseInt(fl
 Sub = ":sub" __ name:[a-zA-Z_0-9-]+ { return mkCmd('sub', flatten(name)); }
 
 Call = ":call" __ sub:[a-zA-Z_0-9-]+ { return mkCmd('call', flatten(sub)); }
+
+Include = ":include" __ file:[a-zA-Z_0-9-.]+ { return mkCmd('include', flatten(file)); }
 
 Comment = "#" NCR*
 

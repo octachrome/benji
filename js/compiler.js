@@ -23,7 +23,7 @@ function dateSeed(date) {
     return seed;
 }
 
-function Compiler(chance, manifest, subs, offset) {
+function Compiler(chance, manifest, subs, includedScripts, offset) {
     // 7am in millis
     this.offset = offset || ms('7 hours');
     this.chance = chance;
@@ -31,6 +31,7 @@ function Compiler(chance, manifest, subs, offset) {
     this.manifest = manifest;
     this.vars = {};
     this.subs = subs || {};
+    this.includedScripts = includedScripts || {};
     var compiler = this;
     this.utils = {
         pick: function (array) {
@@ -48,13 +49,13 @@ function Compiler(chance, manifest, subs, offset) {
     }
 }
 
-function compileScript(date, manifest, script) {
+function compileScript(date, manifest, script, includedScripts) {
     // Find midnight GMT on the date.
     date = new Date(date.toDateString());
     var seed = dateSeed(date);
     var chance = new Chance(seed);
 
-    var compiler = new Compiler(chance, manifest);
+    var compiler = new Compiler(chance, manifest, null, includedScripts);
     compiler.compileRoot(script);
     return compiler.events;
 }
@@ -202,6 +203,15 @@ Compiler.prototype.compile = function(script, ctx) {
         else if (script.cmd === 'sub') {
             this.subs[script.args[0]] = script.child;
         }
+        else if (script.cmd === 'include') {
+            var includedScript = this.includedScripts[script.args[0]];
+            if (includedScript) {
+                this.compile(includedScript, ctx);
+            }
+            else {
+                console.error('Unknown included script file: ' + script.args[0]);
+            }
+        }
         else if (script.cmd === 'call') {
             var sub = this.subs[script.args[0]];
             if (sub) {
@@ -214,7 +224,7 @@ Compiler.prototype.compile = function(script, ctx) {
         else if (script.cmd === 'background') {
             var bgEvents;
             if (script.child) {
-                var bgCompiler = new Compiler(this.chance, this.manifest, this.subs);
+                var bgCompiler = new Compiler(this.chance, this.manifest, this.subs, this.includedScripts);
                 bgCompiler.compileRoot(script.child);
                 bgEvents = bgCompiler.events;
             }
