@@ -22,6 +22,7 @@ function Script() {
     this.player = new Player(this.stage, 100);
     this.player.onend = this.playNextEvent.bind(this);
     this.loadCallbacks = [];
+    PIXI.loader.on('load', this.onResourceLoaded.bind(this));
 }
 
 Script.prototype.createBgPlayer = function (thread) {
@@ -63,22 +64,26 @@ Script.prototype.preloadAnims = function () {
     });
     collectAnimsToPreload(anims, this.events, this.nextEvent);
 
-    var resourcesNeeded = Object.keys(anims).map(function (anim) {
-        return 'anim/' + anim + '.json';
-    });
-    return this.ensureResourcesLoaded(resourcesNeeded);
+    return this.ensureAnimsLoaded(Object.keys(anims));
 };
 
-Script.prototype.ensureResourcesLoaded = function (resourcesNeeded) {
+Script.prototype.ensureAnimsLoaded = function (anims) {
+    if (typeof anims === 'string') {
+        anims = [anims];
+    }
+    var resourcesNeeded = anims.map(function (anim) {
+        return 'anim/' + anim + '.json';
+    });
     var loader = PIXI.loader;
     var mustLoad = [];
     var mustWaitFor = [];
     resourcesNeeded.forEach(function (resourceName) {
         var resource = loader.resources[resourceName];
+        var imageResource = loader.resources[resourceName + '_image'];
         if (!resource) {
             mustLoad.push(resourceName);
         }
-        else if (!resource.data) {
+        else if (!resource.isComplete || !imageResource || !imageResource.isComplete) {
             mustWaitFor.push(resourceName);
         }
     });
@@ -89,7 +94,7 @@ Script.prototype.ensureResourcesLoaded = function (resourcesNeeded) {
             resolve.resourcesNeeded = resourcesNeeded;
             if (mustLoad.length) {
                 loader.add(mustLoad);
-                loader.load(self.onResourcesLoaded.bind(self));
+                loader.load();
             }
         });
     }
@@ -98,7 +103,10 @@ Script.prototype.ensureResourcesLoaded = function (resourcesNeeded) {
     }
 }
 
-Script.prototype.onResourcesLoaded = function () {
+/**
+ * Called whenever a resource is loaded.
+ */
+Script.prototype.onResourceLoaded = function () {
     for (var i = 0; i < this.loadCallbacks.length; i++) {
         var callback = this.loadCallbacks[i];
         if (isAllLoaded(callback.resourcesNeeded)) {
@@ -113,7 +121,8 @@ Script.prototype.onResourcesLoaded = function () {
         for (var i = 0; i < resourcesNeeded.length; i++) {
             var resourceName = resourcesNeeded[i];
             var resource = loader.resources[resourceName];
-            if (!resource || !resource.data) {
+            var imageResource = loader.resources[resourceName + '_image'];
+            if (!resource || !resource.isComplete || !imageResource || !imageResource.isComplete) {
                 return false;
             }
         }
@@ -188,9 +197,11 @@ Script.prototype.playNextEvent = function (eventIdx) {
         this.updateDialog(0, '');
         this.updateDialog(1, '');
     }
+    this.preloadAnims();
+
     var self = this;
-    return this.preloadAnims().then(function () {
-        var evt;
+    var evt;
+    return Promise.resolve().then(function () {
         while (true) {
             evt = self.events[self.nextEvent];
             self.nextEvent++;
@@ -200,8 +211,9 @@ Script.prototype.playNextEvent = function (eventIdx) {
 
             if (evt.event.type === 'play') {
                 var anim = evt.event.anim;
-                self.player.play(anim, self.scriptTime);
-                break;
+                return self.ensureAnimsLoaded(anim).then(function () {
+                    self.player.play(anim, self.scriptTime);
+                });
             }
             else if (evt.event.type === 'dialog') {
                 self.updateDialog(evt.event.pos, evt.event.dialog);
@@ -214,13 +226,14 @@ Script.prototype.playNextEvent = function (eventIdx) {
             }
             else if (evt.event.type === 'nothing') {
                 self.player.playNothing(evt.duration, self.scriptTime);
-                break;
+                return;
             }
             else {
                 console.error('Unknown event: ' + evt.event.type);
-                break;
+                return;
             }
         }
+    }).then(function () {
         self.updateTimestamp(new Date(evt.time).toTimeString().substr(0, 8));
     });
 };
@@ -236,7 +249,8 @@ Script.prototype.playNextBgEvent = function (thread) {
     if (!this.bgEvents[thread]) {
         return;
     }
-    return this.preloadAnims().then(function () {
+    this.preloadAnims();
+    return Promise.resolve().then(function () {
         while (true) {
             var evt = self.bgEvents[thread][self.nextBgEvent[thread]];
             self.nextBgEvent[thread]++;
@@ -246,8 +260,9 @@ Script.prototype.playNextBgEvent = function (thread) {
 
             if (evt.event.type === 'play') {
                 var anim = evt.event.anim;
-                self.getBgPlayer(thread).play(anim, self.scriptTime);
-                break;
+                return self.ensureAnimsLoaded(anim).then(function () {
+                    self.getBgPlayer(thread).play(anim, self.scriptTime);
+                })
             }
             else if (evt.event.type === 'dialog') {
                 self.updateDialog(evt.event.pos, evt.event.dialog);
@@ -257,11 +272,11 @@ Script.prototype.playNextBgEvent = function (thread) {
             }
             else if (evt.event.type === 'nothing') {
                 self.getBgPlayer(thread).playNothing(evt.duration, self.scriptTime);
-                break;
+                return;
             }
             else if (evt.event.type !== 'background') {
                 console.error('Unknown event: ' + evt.event.type);
-                break;
+                return;
             }
         }
     });
