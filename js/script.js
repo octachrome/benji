@@ -314,8 +314,12 @@ Script.prototype.load = function (scriptPath) {
 
         return $.get(scriptPath).then(function (scriptSrc) {
             return getParser().then(function (parser) {
+                console.log('Parsing main script');
                 self.root = parser.parse(scriptSrc);
-                return self.parseIncludedScripts(self.root);
+                console.log('Checking for included scripts');
+                return Promise.resolve(self.parseIncludedScripts(self.root)).then(function () {
+                    console.log('Parsing complete');
+                });
             });
         });
     });
@@ -330,6 +334,7 @@ Script.prototype.parseIncludedScripts = function (script) {
                 return getParser().then(function (parser) {
                     // Double-check because of concurrency.
                     if (!self.scripts[filename]) {
+                        console.log('Parsing ' + filename);
                         self.scripts[filename] = parser.parse(src);
                     }
                 });
@@ -344,13 +349,18 @@ Script.prototype.parseIncludedScripts = function (script) {
             return this.parseIncludedScripts(script.else);
         }
         else if (script.children) {
-            return Promise.all(script.children.map(function (child) {
-                return self.parseIncludedScripts(child);
-            }));
+            var promises = [];
+            script.children.forEach(function (child) {
+                var promise = self.parseIncludedScripts(child);
+                if (promise) {
+                    promises.push(promise);
+                }
+            });
+            if (promises.length) {
+                return Promise.all(promises);
+            }
         }
     }
-
-    return Promise.resolve();
 };
 
 Script.prototype.compile = function (dateStr) {
