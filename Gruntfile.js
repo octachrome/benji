@@ -1,8 +1,16 @@
 module.exports = function (grunt) {
     grunt.loadNpmTasks('grunt-contrib-copy');
     grunt.loadNpmTasks('grunt-contrib-watch');
+    grunt.loadNpmTasks('grunt-bower-task');
 
     grunt.initConfig({
+        bower: {
+            static: {
+                options: {
+                    targetDir: 'bower_lib'
+                }
+            }
+        },
         copy: {
             static: {
                 files: [
@@ -12,7 +20,7 @@ module.exports = function (grunt) {
                         'static/lib/lodash.js': 'node_modules/lodash/lodash.js',
                         'static/lib/long.js': 'node_modules/long/dist/long.js',
                         'static/lib/chance.js': 'node_modules/chance/chance.js',
-                        'static/lib/pixi.js': 'node_modules/pixi.js/bin/pixi.min.js',
+                        'static/lib/pixi.js': 'bower_lib/pixi.js/pixi.min.js',
                     },
                     {
                         expand: true,
@@ -62,7 +70,7 @@ module.exports = function (grunt) {
         }
     });
 
-    grunt.registerTask('static', ['copy:static', 'copy:static_ms']);
+    grunt.registerTask('static', ['bower:static', 'copy:static', 'copy:static_ms']);
     grunt.registerTask('site', ['static', 'copy:data']);
     grunt.registerTask('default', 'static');
 };

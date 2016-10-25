@@ -1,8 +1,8 @@
 var PORT = 8311;
 var fs = require('fs');
 var path = require('path');
-var staticFile = require('connect-static-file');
-var express = require('express');
+var serveStatic = require('serve-static');
+var connect = require('connect');
 
 var app, server, port, scriptPath, animRoute;
 
@@ -14,20 +14,25 @@ function startServer(_animPath, _scriptPath) {
 
 function _startServer(_animPath, _scriptPath) {
   scriptPath = _scriptPath;
-  animRoute = express.static(_animPath);
+  // Serve any other scripts that are in the same directory.
+  scriptRoute = serveStatic(path.dirname(_scriptPath));
+  animRoute = serveStatic(_animPath);
   if (!server) {
-    app = express();
-    app.use('/preview.html', express.static(__dirname + '/static/index.html'));
+    app = connect();
+    app.use('/preview.html', serveStatic(__dirname + '/static/index.html'));
     app.use('/anim', animRoute);
-    app.use('/', express.static(__dirname + '/static'));
+    app.use('/', scriptRoute);
+    app.use('/', serveStatic(__dirname + '/static'));
     app.use('/script.benji', function (req, res, next) {
       fs.readFile(scriptPath, function (err, data) {
         if (err) {
           next(err);
         }
         else {
-          res.set('Content-Type', 'text/plain');
-          res.send(data);
+          res.writeHead(200, {
+            'Content-Type': 'text/plain'
+          });
+          res.end(data);
         }
       });
     });
@@ -69,5 +74,5 @@ module.exports = {
 };
 
 if (require.main === module) {
-  startServer('/home/chris/code/benji-data/anim', '/home/chris/code/benji-data/scripts/test.benji');
+  startServer('/home/chris/code/benji-data/anim', '/home/chris/code/benji-data/scripts/script.benji');
 }
