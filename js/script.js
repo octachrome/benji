@@ -2,12 +2,19 @@ var PRELOAD_MS = 3 * 1000;
 
 var parser;
 
+/**
+ * A version of $.get which works properly with native promises.
+ */
+function xhrGet(options) {
+    return Promise.resolve($.get(options));
+}
+
 function getParser() {
     if (parser) {
         return Promise.resolve(parser);
     }
     else {
-        return $.get('js/benji.pegjs').then(function (parserSrc) {
+        return xhrGet('js/benji.pegjs').then(function (parserSrc) {
             parser = PEG.buildParser(parserSrc);
             return parser;
         });
@@ -305,19 +312,19 @@ Script.prototype.load = function (scriptPath) {
     this.playing = false;
     var self = this;
 
-    return $.get({
+    return xhrGet({
         url: 'anim/anims.json',
         dataType: 'json'
     }).then(function (manifest) {
         self.manifest = manifest;
         self.scripts = {};
 
-        return $.get(scriptPath).then(function (scriptSrc) {
+        return xhrGet(scriptPath).then(function (scriptSrc) {
             return getParser().then(function (parser) {
                 console.log('Parsing main script');
                 self.root = parser.parse(scriptSrc);
                 console.log('Checking for included scripts');
-                return Promise.resolve(self.parseIncludedScripts(self.root)).then(function () {
+                return Promise.resolve(self.parseIncludedScripts(self.root, parser)).then(function () {
                     console.log('Parsing complete');
                 });
             });
@@ -325,33 +332,32 @@ Script.prototype.load = function (scriptPath) {
     });
 };
 
-Script.prototype.parseIncludedScripts = function (script) {
+Script.prototype.parseIncludedScripts = function (script, parser) {
     var self = this;
     if (script.type === 'Cmd' && script.cmd === 'include') {
         var filename = script.args[0];
         if (!self.scripts[filename]) {
-            return $.get(filename).then(function (src) {
-                return getParser().then(function (parser) {
-                    // Double-check because of concurrency.
-                    if (!self.scripts[filename]) {
-                        console.log('Parsing ' + filename);
-                        self.scripts[filename] = parser.parse(src);
-                    }
-                });
+            return xhrGet(filename).then(function (src) {
+                // Double-check because of concurrency.
+                if (!self.scripts[filename]) {
+                    console.log('Parsing ' + filename);
+                    self.scripts[filename] = parser.parse(src);
+                    return self.parseIncludedScripts(self.scripts[filename], parser);
+                }
             });
         }
     }
     else {
         if (script.child) {
-            return this.parseIncludedScripts(script.child);
+            return this.parseIncludedScripts(script.child, parser);
         }
         else if (script.else) {
-            return this.parseIncludedScripts(script.else);
+            return this.parseIncludedScripts(script.else, parser);
         }
         else if (script.children) {
             var promises = [];
             script.children.forEach(function (child) {
-                var promise = self.parseIncludedScripts(child);
+                var promise = self.parseIncludedScripts(child, parser);
                 if (promise) {
                     promises.push(promise);
                 }

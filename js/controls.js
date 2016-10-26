@@ -13,11 +13,12 @@ function ViewModel() {
             self.events([]);
             var date = self.date();
             setTimeout(function () {
+                console.log('Compiling');
                 self.script.compile(date).then(function () {
                     self.events(makeEvents(self.script.events));
                     self.play();
                 });
-            }, 50);
+            });
         }
     });
 
