@@ -1,5 +1,13 @@
 'use strict';
 
+if (typeof dcodeIO === 'undefined') {
+    self.exports = {};
+    importScripts('../lib/long.js')
+    importScripts('../lib/chance.js');
+    importScripts('../lib/ms.js');
+    self.Chance = self.exports.Chance;
+}
+
 var Long = dcodeIO.Long;
 var mul = new Long(0xDEECE66D, 0x5);
 var mask = new Long(0xFFFFFFFF, 0xFFFF);
@@ -49,7 +57,40 @@ function Compiler(chance, manifest, subs, includedScripts, offset) {
     }
 }
 
+var useWorker = false;
+var worker;
+
+if (useWorker && typeof window === 'object' && window.Worker) {
+    worker = new Worker('js/compiler.js');
+}
+
 function compileScript(date, manifest, script, includedScripts) {
+    var start = new Date().getTime();
+    if (worker) {
+        return new Promise(function (resolve) {
+            worker.onmessage = function (event) {
+                console.log('Compile finished in ' + (new Date().getTime() - start) + 'ms');
+                if (event.data.type === 'compileResult') {
+                    resolve(event.data.events);
+                }
+            };
+            worker.postMessage({
+                type: 'compile',
+                date: date,
+                manifest: manifest,
+                script: script,
+                includedScripts: includedScripts
+            });
+        });
+    }
+    else {
+        var events = doCompileScript(date, manifest, script, includedScripts);
+        console.log('Compile finished in ' + (new Date().getTime() - start) + 'ms');
+        return Promise.resolve(events);
+    }
+}
+
+function doCompileScript(date, manifest, script, includedScripts) {
     // Find midnight GMT on the date.
     date = new Date(date.toDateString());
     var seed = dateSeed(date);
@@ -58,6 +99,24 @@ function compileScript(date, manifest, script, includedScripts) {
     var compiler = new Compiler(chance, manifest, null, includedScripts);
     compiler.compileRoot(script);
     return compiler.events;
+}
+
+if (typeof window === 'undefined') {
+    onmessage = function (event) {
+        if (event.data.type === 'compile') {
+            var events = doCompileScript(
+                event.data.date,
+                event.data.manifest,
+                event.data.script,
+                event.data.includedScripts
+            );
+            postMessage({
+                type: 'compileResult',
+                events: events,
+                id: event.data.id
+            });
+        }
+    };
 }
 
 function parseTime(time) {

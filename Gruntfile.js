@@ -38,7 +38,7 @@ module.exports = function (grunt) {
             static_ms: {
                 options: {
                     process: function (content) {
-                        return content.replace(/module\.exports/g, 'window.ms');
+                        return content.replace(/module\.exports/g, 'ms');
                     }
                 },
                 files: {
@@ -54,7 +54,10 @@ module.exports = function (grunt) {
                         src: 'anim/**'
                     },
                     {
-                        'static/script.benji': '../benji-data/scripts/test.benji'
+                        expand: true,
+                        cwd: '../benji-data/scripts',
+                        dest: 'static/',
+                        src: '*.benji'
                     }
                 ]
             }

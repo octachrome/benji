@@ -1,5 +1,8 @@
 var PRELOAD_MS = 3 * 1000;
 
+PIXI.MIPMAP_TEXTURES = false;
+PIXI.SCALE_MODES.DEFAULT = PIXI.SCALE_MODES.NEAREST;
+
 var parser;
 
 /**
@@ -380,10 +383,12 @@ Script.prototype.compile = function (dateStr) {
     var time = ((date.getHours() * 60 + date.getMinutes()) * 60 + date.getSeconds()) * 1000;
 
     this.playing = false;
-    this.events = compileScript(date, this.manifest, this.root, this.scripts);
-
     this.nextEvent = 0;
     this.scriptTime = 0;
 
-    return this.playEventAfterTime(time);
+    var self = this;
+    return compileScript(date, this.manifest, this.root, this.scripts).then(function (events) {
+        self.events = events;
+        return self.playEventAfterTime(time);
+    });
 };
