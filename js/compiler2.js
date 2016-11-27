@@ -1,7 +1,8 @@
-function Compiler2(includedScripts) {
+function Compiler2(manifest, includedScripts) {
     this.program = [];
     this.nextVar = 0;
     this.indentation = '';
+    this.manifest = manifest;
     this.includedScripts = includedScripts;
     this.includeStack = ['main'];
 }
@@ -16,6 +17,95 @@ Compiler2.prototype.compileRoot = function(node) {
     this.addLine('}');
     this.outdent();
     this.addLine('}');
+    var func = new Function('$vars', '$funcs', '$context', this.getProgram());
+    var mainState = {
+        events: [],
+        offset: ms('7 hours')
+    };
+    var context = {
+        state: mainState
+    };
+    var chance = new Chance();
+    var manifest = this.manifest;
+    var funcs = {
+        pick: function (array) {
+            return chance.pick(array);
+        },
+        maybe: function (probability) {
+            return chance.bool({likelihood: probability});
+        },
+        rand: function () {
+            return chance.random();
+        },
+        randint: function (min, max) {
+            return chance.integer({min: min, max: max});
+        },
+        binom: function(x, spread) {
+            function defaultSpread(c) {
+                if (c === 0) {
+                    return 1;
+                } else {
+                    var l = Math.log(c / 4);
+                    return Math.max(1, Math.ceil(l));
+                }
+            }
+            if (typeof spread !== 'number') {
+                spread = defaultSpread(x);
+            }
+            for (var i = 0; i < spread * 2; i++) {
+                x += chance.pick([-0.5, 0.5]);
+            }
+            return Math.max(0, x);
+        },
+        play: function (animName) {
+            var anim = manifest[animName]
+            if (anim) {
+                var event = {
+                    type: 'anim',
+                    anim: animName
+                };
+                if (context.state.nextDialog) {
+                    event.dialog = context.state.nextDialog;
+                }
+                context.state.events.push(event);
+                var ms = (anim.totalFrames || 0) / FRAME_RATE * 1000;
+                context.state.offset += ms;
+            }
+            else {
+                console.error('Unknown animation: ' + animName);
+                context.state.offset += 100;
+            }
+            context.state.nextDialog = null;
+        },
+        dialog: function (dialog, pos) {
+            context.state.nextDialog = {
+                dialog: dialog,
+                pos: pos
+            };
+            var dialogAnim = (vars.dialog_anims || '').split(' ')[pos];
+            if (dialogAnim) {
+                funcs.play(dialogAnim);
+            }
+        },
+        thread: function (thread) {
+            if (thread === 'main') {
+                context.state = mainState;
+            }
+            else {
+                context.state = {
+                    events: [],
+                    offset: mainState.offset
+                };
+                mainState.events.push({
+                    type: 'background',
+                    events: context.state.events,
+                    thread: thread
+                });
+            }
+        }
+    };
+    func({}, funcs, context);
+    return Promise.resolve(mainState.events);
 };
 
 Compiler2.prototype.compileNode = function(node) {
@@ -118,13 +208,13 @@ Compiler2.prototype.compileCmd_maybe = function (node) {
 
 Compiler2.prototype.compileCmd_nothing = function () {
     // Advance time.
-    this.addLine('$state.offset++');
+    this.addLine('$context.state.offset += 100;');
 };
 
 Compiler2.prototype.compileCmd_background = function (node) {
     this.addLine('$funcs.thread(', node.args[0], ');');
     this.compileChild(node);
-    this.addLine('$funcs.thread(null);');
+    this.addLine('$funcs.thread("main");');
 };
 
 Compiler2.prototype.compileCmd_set = function (node) {
@@ -139,8 +229,8 @@ Compiler2.prototype.compileCmd_set = function (node) {
 Compiler2.prototype.compileCmd_repeat_for = function (node) {
     var millis = ms(node.args[1] + ' ' + node.args[2]);
     var varName = 'until' + this.nextVar++;
-    this.addLine('var ', varName, ' = $state.offset + ', millis, ';');
-    this.addLine('while ($state.offset < ', varName, ') {');
+    this.addLine('var ', varName, ' = $context.state.offset + ', millis, ';');
+    this.addLine('while ($context.state.offset < ', varName, ') {');
     this.indent();
     this.compileChild(node);
     this.outdent();
@@ -149,7 +239,7 @@ Compiler2.prototype.compileCmd_repeat_for = function (node) {
 
 Compiler2.prototype.compileCmd_repeat_until = function (node) {
     var until = parseTime(node.args[1]);
-    this.addLine('while ($state.offset < ', until, ') {');
+    this.addLine('while ($context.state.offset < ', until, ') {');
     this.indent();
     this.compileChild(node);
     this.outdent();
