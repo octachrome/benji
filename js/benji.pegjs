@@ -132,7 +132,8 @@
     return new Element({
       type: 'Cmd',
       cmd: cmd,
-      args: Array.prototype.slice.call(arguments, 1)
+      args: Array.prototype.slice.call(arguments, 1),
+      location: location()
     });
   }
 
