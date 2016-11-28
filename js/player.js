@@ -60,4 +60,4 @@ Player.prototype.update = function (time) {
     }
     var textureName = this.textureNames[frame];
     this.sprite.texture = this.textures[textureName];
-}
+};
