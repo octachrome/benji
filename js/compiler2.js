@@ -27,6 +27,7 @@ Compiler2.prototype.compileRoot = function(node) {
     };
     var chance = new Chance();
     var manifest = this.manifest;
+    var vars = {};
     var funcs = {
         pick: function (array) {
             return chance.pick(array);
@@ -62,7 +63,8 @@ Compiler2.prototype.compileRoot = function(node) {
             if (anim) {
                 var event = {
                     type: 'anim',
-                    anim: animName
+                    anim: animName,
+                    offset: context.state.offset
                 };
                 if (context.state.nextDialog) {
                     event.dialog = context.state.nextDialog;
@@ -84,7 +86,15 @@ Compiler2.prototype.compileRoot = function(node) {
             };
             var dialogAnim = (vars.dialog_anims || '').split(' ')[pos];
             if (dialogAnim) {
-                funcs.play(dialogAnim);
+                var frames = (dialog || '').length * DIALOG_SPEED;
+                var start = context.state.offset;
+                while (context.state.offset - start < frames) {
+                    context.state.nextDialog = {
+                        dialog: dialog,
+                        pos: pos
+                    };
+                    funcs.play(dialogAnim);
+                }
             }
         },
         thread: function (thread) {
@@ -104,7 +114,7 @@ Compiler2.prototype.compileRoot = function(node) {
             }
         }
     };
-    func({}, funcs, context);
+    func(vars, funcs, context);
     return Promise.resolve(mainState.events);
 };
 
