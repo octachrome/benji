@@ -51,16 +51,15 @@ Player2.prototype.update = function (gameTime) {
 
     // Show the frame.
     var resource = this.loader.resources['anim/' + curEvent.event.anim + '.json'];
-    if (!resource) {
-        throw new Error('Animation not loaded: ' + curEvent.event.anim);
+    if (!resource || !resource.textures) {
+        return;
     }
-    var textures = resource.textures;
-    var textureNames = Object.keys(this.textures).sort();
-    var timeOffset = curEvent.time - gameTime;
+    var textureNames = Object.keys(resource.textures).sort();
+    var timeOffset = gameTime - curEvent.time;
     var frame = Math.floor(timeOffset * FRAME_RATE / 1000);
     if (frame < textureNames.length) {
         var textureName = textureNames[frame];
-        this.sprite.texture = textures[textureName];
+        this.sprite.texture = resource.textures[textureName];
         this.sprite.visible = true;
     }
 };
@@ -68,7 +67,7 @@ Player2.prototype.update = function (gameTime) {
 Player2.prototype.getRelativeGameTime = function (gameTime) {
     // After the end, loop back to the beginning.
     var repeats = Math.floor((gameTime - this.startTime) / this.totalDuration);
-    return repeats * this.totalDuration;
+    return gameTime - repeats * this.totalDuration;
 };
 
 Player2.prototype.getCurrentEventIndex = function (gameTime) {
@@ -96,17 +95,24 @@ Player2.prototype.hide = function () {
 };
 
 Player2.prototype.preload = function (gameTime) {
+    if (!this.events.length) {
+        return;
+    }
+    if (gameTime < this.startTime) {
+        // Events not yet started.
+        return;
+    }
     gameTime = this.getRelativeGameTime(gameTime);
     var curEventIdx = this.getCurrentEventIndex(gameTime);
     if (curEventIdx === null) {
         return Promise.resolve();
     }
-    var anims = [];
+    var anims = {};
     var curEvent = this.events[curEventIdx];
     var timeOffset = 0;
     while (curEvent.time + timeOffset < gameTime + PRELOAD_MS) {
         if (curEvent.event.type === 'play') {
-            anims.push(curEvent.event.anim);
+            anims[curEvent.event.anim] = true;
         }
         curEventIdx++;
         if (curEventIdx >= this.events.length) {
@@ -116,7 +122,7 @@ Player2.prototype.preload = function (gameTime) {
         }
         curEvent = this.events[curEventIdx];
     }
-    return this.ensureAnimsLoaded(anims);
+    return this.ensureAnimsLoaded(Object.keys(anims));
 };
 
 Player2.prototype.ensureAnimsLoaded = function (anims) {
@@ -128,9 +134,10 @@ Player2.prototype.ensureAnimsLoaded = function (anims) {
     });
     var mustLoad = [];
     var mustWaitFor = [];
+    var self = this;
     resourcesNeeded.forEach(function (resourceName) {
-        var resource = this.loader.resources[resourceName];
-        var imageResource = this.loader.resources[resourceName + '_image'];
+        var resource = self.loader.resources[resourceName];
+        var imageResource = self.loader.resources[resourceName + '_image'];
         if (!resource) {
             mustLoad.push(resourceName);
         }
@@ -139,13 +146,12 @@ Player2.prototype.ensureAnimsLoaded = function (anims) {
         }
     });
     if (mustWaitFor.length || mustLoad.length) {
-        var self = this;
         return new Promise(function (resolve) {
             self.loadCallbacks.push(resolve);
             resolve.resourcesNeeded = resourcesNeeded;
             if (mustLoad.length) {
-                this.loader.add(mustLoad);
-                this.loader.load();
+                self.loader.add(mustLoad);
+                self.loader.load();
             }
         });
     }

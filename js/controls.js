@@ -27,14 +27,15 @@ function ViewModel() {
     });
 
     self.gotoEvent = function (event) {
-        if (event.bgEvents) {
+/*        if (event.bgEvents) {
             event.bgEvents.forEach(function (events, thread) {
                 if (events) {
                     self.script.setBg(thread, events);
                 }
             });
         }
-        self.script.playNextEvent(event.index);
+*/
+        self.script.play(event.timestamp);
     };
 }
 
@@ -55,6 +56,7 @@ function makeEvents(events) {
             var match = event.event.anim.match(/(.*)-[0-9]+$/);
             if (match && match[1] != lastAnim) {
                 results.push({
+                    timestamp: event.time,
                     time: new Date(event.time).toTimeString().substr(0, 8),
                     name: match[1],
                     index: idx,
