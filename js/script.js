@@ -29,13 +29,22 @@ function Script() {
     this.bgEvents = [];
     this.nextBgEvent = [];
     this.bgPlayers = [];
-    this.player = new Player2(this.stage, 100);
+    this.player = new Player2(this.stage, 100, this.onEvent.bind(this));
 }
 
 Script.prototype.createBgPlayer = function (thread) {
     var player = new Player(this.stage, thread);
     player.onend = this.playNextBgEvent.bind(this, thread);
     return player;
+};
+
+Script.prototype.onEvent = function (event) {
+    if (event.event.type === 'dialog') {
+        this.updateDialog(event.event.pos, event.event.dialog);
+    }
+    else if (event.event.type === 'clear-dialog') {
+        this.updateDialog(event.event.pos, '');
+    }
 };
 
 Script.prototype.play = function (time) {

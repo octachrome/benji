@@ -1,10 +1,11 @@
 var PRELOAD_CONCURRENCY = 1;
 var PRELOAD_MS = 3 * 1000;
 
-function Player2(stage, zIndex) {
+function Player2(stage, zIndex, onEvent) {
     this.sprite = new PIXI.Sprite();
     this.sprite.zIndex = zIndex || 0;
     this.sprite.visible = true;
+    this.onEvent = onEvent;
     stage.addChild(this.sprite);
     stage.children.sort(function(a, b) {
         a.zIndex = a.zIndex || 0;
@@ -42,14 +43,15 @@ Player2.prototype.update = function (gameTime) {
         return;
     }
     gameTime = this.getRelativeGameTime(gameTime);
+    var prevEventIdx = this.curEventIdx;
     var curEventIdx = this.getCurrentEventIndex(gameTime);
     if (curEventIdx === null) {
         return;
     }
     this.curEventIdx = curEventIdx;
-    var curEvent = this.events[curEventIdx];
-
+    this.notifyEventsBetween(prevEventIdx, curEventIdx);
     // Show the frame.
+    var curEvent = this.events[curEventIdx];
     var resource = this.loader.resources['anim/' + curEvent.event.anim + '.json'];
     if (!resource || !resource.textures) {
         return;
@@ -61,6 +63,26 @@ Player2.prototype.update = function (gameTime) {
         var textureName = textureNames[frame];
         this.sprite.texture = resource.textures[textureName];
         this.sprite.visible = true;
+    }
+};
+
+Player2.prototype.notifyEventsBetween = function (prevEventIdx, curEventIdx) {
+    var eventsBetween = curEventIdx - prevEventIdx;
+    if (eventsBetween < 0) {
+        // Handle wraparound.
+        eventsBetween += this.events.length;
+    }
+    if (eventsBetween <= 0 || eventsBetween > 20) {
+        // Probably a seek.
+        return;
+    }
+    var i = prevEventIdx;
+    while (i !== curEventIdx) {
+        i++;
+        if (i >= this.events.length) {
+            i -= this.events.length;
+        }
+        this.onEvent && this.onEvent(this.events[i]);
     }
 };
 
