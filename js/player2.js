@@ -48,6 +48,10 @@ Player2.prototype.update = function (gameTime) {
     if (curEventIdx === null) {
         return;
     }
+    if ((gameTime - this.events[curEventIdx].time) < 0) {
+        // Bug?
+        return;
+    }
     this.curEventIdx = curEventIdx;
     this.notifyEventsBetween(prevEventIdx, curEventIdx);
     // Show the frame.
@@ -101,7 +105,7 @@ Player2.prototype.getCurrentEventIndex = function (gameTime) {
         curEventIdx = 0;
         curEvent = this.events[0];
     }
-    while (curEvent.event.type !== 'play' || curEvent.time + curEvent.duration < gameTime) {
+    while (curEvent.time + curEvent.duration < gameTime) {
         curEventIdx++;
         if (curEventIdx >= this.events.length) {
             // Should never happen.

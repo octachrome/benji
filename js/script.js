@@ -26,16 +26,16 @@ function getParser() {
 
 function Script() {
     this.createRenderer();
-    this.bgEvents = [];
     this.nextBgEvent = [];
     this.bgPlayers = [];
     this.player = new Player2(this.stage, 100, this.onEvent.bind(this));
 }
 
-Script.prototype.createBgPlayer = function (thread) {
-    var player = new Player(this.stage, thread);
-    player.onend = this.playNextBgEvent.bind(this, thread);
-    return player;
+Script.prototype.getBgPlayer = function (thread) {
+    if (!this.bgPlayers[thread]) {
+        this.bgPlayers[thread] = new Player2(this.stage, thread);
+    }
+    return this.bgPlayers[thread];
 };
 
 Script.prototype.onEvent = function (event) {
@@ -44,6 +44,10 @@ Script.prototype.onEvent = function (event) {
     }
     else if (event.event.type === 'clear-dialog') {
         this.updateDialog(event.event.pos, '');
+    }
+    else if (event.event.type === 'background') {
+        var bgPlayer = this.getBgPlayer(event.event.thread);
+        bgPlayer.init(event.event.events);
     }
 };
 
@@ -57,6 +61,8 @@ Script.prototype.play = function (time) {
     else {
         this.playerTimeDelay = 0;
     }
+    this.updateDialog(0, '');
+    this.updateDialog(1, '');
     if (this.playing) {
         return;
     }
@@ -83,7 +89,15 @@ Script.prototype.gameLoop = function () {
     var gameTime = this.getGameTime();
     this.player.update(gameTime);
     this.renderer.render(this.stage);
+    var bgPlayers = this.bgPlayers;
+    Object.keys(bgPlayers).forEach(function (thread) {
+        bgPlayers[thread].update(gameTime);
+    });
+
     this.player.preload(gameTime);
+    Object.keys(bgPlayers).forEach(function (thread) {
+        bgPlayers[thread].preload(gameTime);
+    });
     requestAnimationFrame(this.gameLoop.bind(this));
 };
 
