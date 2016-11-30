@@ -31,13 +31,13 @@ function dateSeed(date) {
     return seed;
 }
 
-function Compiler(chance, manifest, subs, includedScripts, offset) {
+function Compiler(chance, manifest, subs, includedScripts, vars, offset) {
     // 7am in millis
     this.offset = offset || ms('7 hours');
     this.chance = chance;
     this.events = [];
     this.manifest = manifest;
-    this.vars = {};
+    this.vars = vars || {};
     this.subs = subs || {};
     this.includedScripts = includedScripts || {};
     var compiler = this;
@@ -283,7 +283,7 @@ Compiler.prototype.compile = function(script, ctx) {
         else if (script.cmd === 'background') {
             var bgEvents;
             if (script.child) {
-                var bgCompiler = new Compiler(this.chance, this.manifest, this.subs, this.includedScripts);
+                var bgCompiler = new Compiler(this.chance, this.manifest, this.subs, this.includedScripts, this.vars);
                 bgCompiler.compileRoot(script.child);
                 bgEvents = bgCompiler.events;
             }
