@@ -31,13 +31,14 @@ function dateSeed(date) {
     return seed;
 }
 
-function Compiler(chance, manifest, subs, includedScripts, offset) {
+function Compiler(date, chance, manifest, subs, includedScripts, vars, offset) {
     // 7am in millis
     this.offset = offset || ms('7 hours');
+    this.date = date;
     this.chance = chance;
     this.events = [];
     this.manifest = manifest;
-    this.vars = {};
+    this.vars = vars || {};
     this.subs = subs || {};
     this.includedScripts = includedScripts || {};
     var compiler = this;
@@ -53,6 +54,9 @@ function Compiler(chance, manifest, subs, includedScripts, offset) {
         },
         randint: function (min, max) {
             return compiler.chance.integer({min: min, max: max});
+        },
+        now: function () {
+            return new Date(compiler.date.getTime() + compiler.offset);
         }
     }
 }
@@ -96,7 +100,7 @@ function doCompileScript(date, manifest, script, includedScripts) {
     var seed = dateSeed(date);
     var chance = new Chance(seed);
 
-    var compiler = new Compiler(chance, manifest, null, includedScripts);
+    var compiler = new Compiler(date, chance, manifest, null, includedScripts);
     compiler.compileRoot(script);
     return compiler.events;
 }
@@ -283,7 +287,7 @@ Compiler.prototype.compile = function(script, ctx) {
         else if (script.cmd === 'background') {
             var bgEvents;
             if (script.child) {
-                var bgCompiler = new Compiler(this.chance, this.manifest, this.subs, this.includedScripts);
+                var bgCompiler = new Compiler(this.date, this.chance, this.manifest, this.subs, this.includedScripts, this.vars);
                 bgCompiler.compileRoot(script.child);
                 bgEvents = bgCompiler.events;
             }
