@@ -27,7 +27,10 @@ function Script() {
 
 Script.prototype.compile = function (scriptPath) {
     return this.load(scriptPath).then(() => {
-        return Array.from(doCompileScript(new Date(), this.manifest, this.root, this.scripts));
+        // return Array.from(doCompileScript(new Date(), this.manifest, this.root, this.scripts));
+        for (let event of doCompileScript(new Date(), this.manifest, this.root, this.scripts)) {
+            // do nothing
+        }
     });
 };
 

@@ -51,6 +51,7 @@ function Compiler(date, chance, manifest, subs, includedScripts, vars, offset) {
     this.vars = vars || {};
     this.subs = subs || {};
     this.includedScripts = includedScripts || {};
+    this.backgrounds = [];
     var compiler = this;
     this.utils = {
         pick: function (array) {
@@ -144,11 +145,8 @@ function parseTime(time) {
 
 Compiler.prototype.addEvent = function(event, frames) {
     var ms = (frames || 0) / FRAME_RATE * 1000;
-    var event = {
-        time: this.offset,
-        event: event,
-        duration: ms
-    };
+    event.offset = this.offset;
+    event.duration = ms;
     this.offset += ms;
     return event;
 }
@@ -174,12 +172,46 @@ Compiler.prototype.binom = function(x, spread) {
 
 Compiler.prototype.compileRoot = function* (script) {
     var ctx = {};
-    yield* this.compile(script, ctx);
+    var events = this.compile(script, ctx);
+    var offset = this.offset;
+    var nextEvent = events.next();
+    while (!nextEvent.done) {
+        let thread = this.selectThread(offset);
+        if (thread === null) {
+            yield nextEvent.value;
+            offset = this.offset;
+            nextEvent = events.next();
+        }
+        else {
+            let bg = this.backgrounds[thread];
+            let nextBgEvent = bg.events.next();
+            if (!nextBgEvent.done) {
+                nextBgEvent.value.thread = thread;;
+                yield nextBgEvent.value;
+            }
+            else {
+                delete this.backgrounds[thread];
+            }
+        }
+    }
+
     if (ctx.clearDialogAfterNext != null) {
         yield this.addEvent({
             type: 'clear-dialog',
             pos: ctx.clearDialogAfterNext
         });
+    }
+};
+
+Compiler.prototype.selectThread = function (mainOffset) {
+    let offsets = this.backgrounds.map(bg => bg.compiler.offset);
+    let offset = this.backgrounds.reduce((acc, bg) => Math.min(bg.compiler.offset, acc), mainOffset);
+    let idx = offsets.indexOf(offset);
+    if (idx >= 0 && this.backgrounds[idx]) {
+        return this.backgrounds[idx].compiler.offset < mainOffset ? idx : null;
+    }
+    else {
+        return null;
     }
 };
 
@@ -289,19 +321,23 @@ Compiler.prototype.compile = function* (script, ctx) {
             }
         }
         else if (script.cmd === 'background') {
-            // todo
-/*            var bgEvents;
-            if (script.child) {
-                var bgCompiler = new Compiler(this.date, this.chance, this.manifest, this.subs, this.includedScripts, this.vars);
-                bgCompiler.compileRoot(script.child);
-                bgEvents = bgCompiler.events;
+            var thread = script.args[0];
+            if (this.isNothing(script.child)) {
+                delete this.backgrounds[thread];
             }
-            this.addEvent({
-                type: 'background',
-                thread: script.args[0],
-                events: bgEvents || []
-            });
-*/        }
+            else {
+                var bgCompiler = new Compiler(this.date, this.chance, this.manifest, this.subs, this.includedScripts, this.vars, this.offset);
+                this.backgrounds[thread] = {
+                    compiler: bgCompiler,
+                    events: (function* () {
+                        var i = 0;
+                        while (true) {
+                            yield* bgCompiler.compileRoot(script.child);
+                        }
+                    })()
+                };
+            }
+        }
         else if (script.cmd === 'nothing') {
             yield this.addEvent({
                 type: 'nothing'
@@ -337,6 +373,18 @@ Compiler.prototype.compile = function* (script, ctx) {
     }
     else {
         console.error('Unknown script element: ' + script.type);
+    }
+};
+
+Compiler.prototype.isNothing = function (script) {
+    if (script.type === 'Cmd') {
+        return script.cmd === 'nothing';
+    }
+    else if (script.type === 'Seq') {
+        return script.children.length === 1 && this.isNothing(script.children[0]);
+    }
+    else {
+        return false;
     }
 };
 
