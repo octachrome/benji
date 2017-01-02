@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "connect": "^3.5.0",
+    "promise-ring": "^0.1.0",
     "serve-static": "^1.11.1"
   },
   "devDependencies": {
