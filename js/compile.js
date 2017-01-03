@@ -1,5 +1,9 @@
 'use strict';
 
+var SEGMENT_DURATION = 400;
+var FRAME_RATE = 12.5;
+var FRAME_MS = 1000 / FRAME_RATE;
+
 var fs = require('fs');
 var Path = require('path');
 var PEG = require('pegjs');
@@ -27,11 +31,55 @@ function Script() {
 
 Script.prototype.compile = function (scriptPath) {
     return this.load(scriptPath).then(() => {
-        // return Array.from(doCompileScript(new Date(), this.manifest, this.root, this.scripts));
-        for (let event of doCompileScript(new Date(), this.manifest, this.root, this.scripts)) {
-            // do nothing
+        let i = 0;
+        for (let segment of this.getSegments()) {
+            console.log(segment);
+            if (++i >= 2) {
+                break;
+            }
         }
     });
+};
+
+Script.prototype.getSegments = function* () {
+    let eventsByThread = new Map();
+    let startOffset = null;
+    for (let event of doCompileScript(new Date(), this.manifest, this.root, this.scripts)) {
+        if (startOffset === null) {
+            startOffset = event.offset;
+        }
+        else if (event.offset - startOffset >= SEGMENT_DURATION) {
+            yield eventsByThread;
+            eventsByThread = new Map(Array.from(eventsByThread.entries()).map(kv => {
+                let events = [];
+                for (let event of kv[1]) {
+                    if (event.offset + event.duration > startOffset + SEGMENT_DURATION) {
+                        let newEvent = Object.assign({}, event);
+                        let playedDuration = startOffset + SEGMENT_DURATION - event.offset;
+                        newEvent.startFrame = (newEvent.startFrame || 0) + playedDuration / FRAME_RATE;
+                        newEvent.offset += playedDuration;
+                        newEvent.duration -= playedDuration;
+                        events.push(newEvent);
+                    }
+                }
+                return [kv[0], events];
+            }));
+            startOffset = event.offset;
+        }
+        let thread = typeof event.thread === 'number' ? event.thread : 'main';
+        let events = eventsByThread.get(thread);
+        if (!events) {
+            eventsByThread.set(thread, events = []);
+        }
+        let lastEvent = events[events.length - 1];
+        if (lastEvent && (lastEvent.type === 'play' || lastEvent.type === 'nothing') &&
+            lastEvent.type === event.type && lastEvent.anim === event.anim) {
+            lastEvent.repeat = (lastEvent.repeat || 1) + 1;
+        }
+        else {
+            events.push(event);
+        }
+    }
 };
 
 Script.prototype.getParser = function () {

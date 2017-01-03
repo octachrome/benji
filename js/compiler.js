@@ -23,7 +23,6 @@ var mul = new Long(0xDEECE66D, 0x5);
 var mask = new Long(0xFFFFFFFF, 0xFFFF);
 
 var FRAME_RATE = 12.5;
-var FRAME_MS = 1000 / FRAME_RATE;
 var DIALOG_SPEED = .7; // animation frames per character of dialog
 
 // 48-bit random number, can be fully represented in a JavaScript number.
@@ -220,7 +219,7 @@ Compiler.prototype.compile = function* (script, ctx) {
     if (!script) {
         yield this.addEvent({
             type: 'nothing'
-        }, FRAME_MS);
+        }, 1);
     }
     else if (script.type === 'Seq') {
         var lastCtx = {};
@@ -341,7 +340,7 @@ Compiler.prototype.compile = function* (script, ctx) {
         else if (script.cmd === 'nothing') {
             yield this.addEvent({
                 type: 'nothing'
-            }, FRAME_MS);
+            }, 1);
         }
         else if (script.cmd !== 'else') {
             console.error('Unknown command: ' + script.cmd);
@@ -403,9 +402,8 @@ Compiler.prototype.addAnimEvents = function* (animName, frames) {
     if (!anim) {
         console.error('Skipped unknown animation ' + animName);
         yield this.addEvent({
-            type: 'play',
-            anim: 'missing'
-        }, 30);
+            type: 'nothing',
+        }, 1);
         return;
     }
     var rpt = 1;
