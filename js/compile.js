@@ -1,10 +1,12 @@
 'use strict';
 
-var SEGMENT_DURATION = 400;
 var FRAME_RATE = 12.5;
 var FRAME_MS = 1000 / FRAME_RATE;
+var SEGMENT_FRAMES = 32;
+var SEGMENT_DURATION = SEGMENT_FRAMES * FRAME_RATE;
 
 var fs = require('fs');
+var child_process = require('child_process');
 var Path = require('path');
 var PEG = require('pegjs');
 var doCompileScript = require('./compiler');
@@ -32,16 +34,120 @@ function Script() {
 Script.prototype.compile = function (scriptPath) {
     return this.load(scriptPath).then(() => {
         let i = 0;
+        let timestamp = 0;
         for (let segment of this.getSegments()) {
-            console.log(segment);
-            if (++i >= 2) {
+            if (segment.startOffset < 8 * 60 * 60 * 1000) {
+                continue;
+            }
+            this.ffmpeg(timestamp, segment);
+            timestamp += SEGMENT_DURATION;
+            if (++i >= 10) {
                 break;
             }
         }
     });
 };
 
+Script.prototype.ffmpeg = function (timestamp, segment) {
+    let args = ['-y'];
+    let filters = '';
+    function addFilter(filter) {
+        if (filters) {
+            filters += '; ';
+        }
+        filters += filter;
+    }
+    let stream = 0;
+    let threads = [];
+    for (let thread of this.sortThreads(segment)) {
+        let firstStream = stream;
+        let events = segment.eventsByThread.get(thread);
+        for (let event of events) {
+            if (event.type === 'play') {
+                args.push('-r', '12.5');
+                if (event.startFrame) {
+                    args.push('-start_number', event.startFrame);
+                }
+                args.push('-i', this.getAnimFilePattern(event.anim));
+
+                let filter = '[' + stream + ':0] ';
+                if (event.repeat) {
+                     filter += 'loop=loop=' + event.repeat + ' ';
+                }
+                else {
+                    // null is a nop
+                    filter += 'null ';
+                }
+                filter += '[stream' + stream + ']';
+                addFilter(filter);
+                stream++;
+            }
+        }
+        if (stream > firstStream) {
+            let filter = '';
+            for (let i = firstStream; i < stream; i++) {
+                filter += '[stream' + i + '] ';
+            }
+            filter += 'concat=n=' + (stream - firstStream) + ' [thread' + thread + ']';
+            addFilter(filter);
+            threads.push(thread);
+        }
+    }
+    if (threads.length === 1) {
+        args.push('-filter_complex', filters, '-map', '[thread' + threads[0] + ']');
+    }
+    else {
+        let overlay = 0;
+        addFilter('[thread' + threads[0] + '] [thread' + threads[1] + '] overlay [overlay0]');
+        for (let i = 2; i < threads.length; i++) {
+            addFilter('[overlay' + overlay + '] [thread' + threads[i] + '] overlay [overlay' + (++overlay) + ']');
+        }
+        args.push('-filter_complex', filters, '-map', '[overlay' + overlay + ']');
+    }
+    args.push('-vcodec', 'libx264', '-acodec', 'aac',
+        '-f', 'segment', '-initial_offset', timestamp,
+        '-segment_time', '100', '-segment_format', 'mpeg_ts',
+        '-segment_start_number', timestamp,
+        '-frames:v', SEGMENT_FRAMES,
+        'segment_%d.ts');
+    child_process.execFileSync('ffmpeg', args);
+};
+
+Script.prototype.getAnimFilePattern = function (animName) {
+    var anim = this.manifest[animName];
+    if (!anim) {
+        throw new Error('Unknown anim ' + animName);
+    }
+    return anim.pattern;
+};
+
+Script.prototype.sortThreads = function (segment) {
+    return Array.from(segment.eventsByThread.keys()).sort(function (a, b) {
+        if (a === 'main') {
+            return 1;
+        }
+        else if (b === 'main') {
+            return -1;
+        }
+        else {
+            return a - b;
+        }
+    });
+};
+
 Script.prototype.getSegments = function* () {
+    for (let segment of this.collateEvents()) {
+        for (let kv of segment.eventsByThread) {
+            let thread = kv[0], events = kv[1];
+            if (events.length === 1 && events[0].type === 'nothing') {
+                segment.eventsByThread.delete(thread);
+            }
+        }
+        yield segment;
+    }
+};
+
+Script.prototype.collateEvents = function* () {
     let eventsByThread = new Map();
     let startOffset = null;
     for (let event of doCompileScript(new Date(), this.manifest, this.root, this.scripts)) {
@@ -49,14 +155,17 @@ Script.prototype.getSegments = function* () {
             startOffset = event.offset;
         }
         else if (event.offset - startOffset >= SEGMENT_DURATION) {
-            yield eventsByThread;
+            yield {
+                startOffset: startOffset,
+                eventsByThread: eventsByThread
+            };
             eventsByThread = new Map(Array.from(eventsByThread.entries()).map(kv => {
                 let events = [];
                 for (let event of kv[1]) {
                     if (event.offset + event.duration > startOffset + SEGMENT_DURATION) {
                         let newEvent = Object.assign({}, event);
                         let playedDuration = startOffset + SEGMENT_DURATION - event.offset;
-                        newEvent.startFrame = (newEvent.startFrame || 0) + playedDuration / FRAME_RATE;
+                        newEvent.startFrame = (newEvent.startFrame || 0) + playedDuration / FRAME_MS;
                         newEvent.offset += playedDuration;
                         newEvent.duration -= playedDuration;
                         events.push(newEvent);
