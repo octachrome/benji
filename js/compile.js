@@ -34,13 +34,13 @@ function Script() {
 Script.prototype.compile = function (scriptPath) {
     return this.load(scriptPath).then(() => {
         let i = 0;
-        let timestamp = 0;
+        let mediaSequence = 0;
         for (let segment of this.getSegments()) {
             if (segment.startOffset < 8 * 60 * 60 * 1000) {
                 continue;
             }
-            this.ffmpeg(timestamp, segment);
-            timestamp += SEGMENT_DURATION;
+            this.ffmpeg(mediaSequence, segment);
+            mediaSequence++;
             if (++i >= 10) {
                 break;
             }
@@ -48,7 +48,7 @@ Script.prototype.compile = function (scriptPath) {
     });
 };
 
-Script.prototype.ffmpeg = function (timestamp, segment) {
+Script.prototype.ffmpeg = function (mediaSequence, segment) {
     let args = ['-y'];
     let filters = '';
     function addFilter(filter) {
@@ -105,11 +105,11 @@ Script.prototype.ffmpeg = function (timestamp, segment) {
         args.push('-filter_complex', filters, '-map', '[overlay' + overlay + ']');
     }
     args.push('-vcodec', 'libx264', '-acodec', 'aac',
-        '-f', 'segment', '-initial_offset', (timestamp / 1000),
+        '-f', 'segment', '-initial_offset', (mediaSequence * SEGMENT_DURATION / 1000),
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
-        '-segment_start_number', timestamp,
+        '-segment_start_number', mediaSequence,
         '-frames:v', SEGMENT_FRAMES,
-        'segment_%d.ts');
+        'segment_%010d.ts');
     child_process.execFileSync('ffmpeg', args);
 };
 
@@ -182,7 +182,7 @@ Script.prototype.collateEvents = function* () {
         }
         let lastEvent = events[events.length - 1];
         if (lastEvent && (lastEvent.type === 'play' || lastEvent.type === 'nothing') &&
-            lastEvent.type === event.type && lastEvent.anim === event.anim) {
+            lastEvent.type === event.type && lastEvent.anim === event.anim && lastEvent.startFrame === event.startFrame) {
             lastEvent.repeat = (lastEvent.repeat || 1) + 1;
         }
         else {

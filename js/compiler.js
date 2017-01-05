@@ -329,7 +329,6 @@ Compiler.prototype.compile = function* (script, ctx) {
                 this.backgrounds[thread] = {
                     compiler: bgCompiler,
                     events: (function* () {
-                        var i = 0;
                         while (true) {
                             yield* bgCompiler.compileRoot(script.child);
                         }
