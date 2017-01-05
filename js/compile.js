@@ -3,7 +3,7 @@
 var FRAME_RATE = 12.5;
 var FRAME_MS = 1000 / FRAME_RATE;
 var SEGMENT_FRAMES = 32;
-var SEGMENT_DURATION = SEGMENT_FRAMES * FRAME_RATE;
+var SEGMENT_DURATION = SEGMENT_FRAMES * FRAME_MS;
 
 var fs = require('fs');
 var child_process = require('child_process');
@@ -105,7 +105,7 @@ Script.prototype.ffmpeg = function (timestamp, segment) {
         args.push('-filter_complex', filters, '-map', '[overlay' + overlay + ']');
     }
     args.push('-vcodec', 'libx264', '-acodec', 'aac',
-        '-f', 'segment', '-initial_offset', timestamp,
+        '-f', 'segment', '-initial_offset', (timestamp / 1000),
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
         '-segment_start_number', timestamp,
         '-frames:v', SEGMENT_FRAMES,
