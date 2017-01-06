@@ -85,9 +85,9 @@ Script.prototype.ffmpeg = function (mediaSequence, segment) {
                 stream++;
             }
             else if (event.type === 'dialog') {
-                dialogFilters += ", drawtext=enable='between(t," +
-                    (event.segmentOffset / 1000) + "," +
-                    ((event.segmentOffset + event.duration) / 1000) +
+                dialogFilters += ", drawtext=enable='between(n," +
+                    (event.segmentOffset / FRAME_MS) + "," +
+                    ((event.segmentOffset + event.duration) / FRAME_MS - 1) +
                     ")':x=(main_w-text_w)/2:y=500:fontsize=30:expansion=none:text='" +
                     event.dialog.replace(/\\/, '\\\\').replace(/'/g, "\u2019") +
                     "'";
@@ -201,6 +201,11 @@ Script.prototype.collateEvents = function* (eventStream) {
             if (lastDialogEvent) {
                 lastDialogEvent.offset = startOffset;
                 lastDialogEvent.segmentOffset = 0;
+                let mainEvents = eventsByThread.get('main');
+                if (!mainEvents) {
+                    eventsByThread.set('main', mainEvents = []);
+                }
+                mainEvents.unshift(lastDialogEvent);
             }
         }
         event.segmentOffset = event.offset - startOffset;
