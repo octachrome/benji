@@ -39,6 +39,7 @@ Script.prototype.compile = function (scriptPath) {
             if (segment.startOffset < 8 * 60 * 60 * 1000) {
                 continue;
             }
+            // console.log('segment', mediaSequence, segment.startOffset, segment.eventsByThread);
             this.ffmpeg(mediaSequence, segment);
             mediaSequence++;
             if (++i >= 10) {
@@ -62,6 +63,7 @@ Script.prototype.ffmpeg = function (mediaSequence, segment) {
     for (let thread of this.sortThreads(segment)) {
         let firstStream = stream;
         let events = segment.eventsByThread.get(thread);
+        let dialogFilters = '';
         for (let event of events) {
             if (event.type === 'play') {
                 args.push('-r', '12.5');
@@ -82,13 +84,22 @@ Script.prototype.ffmpeg = function (mediaSequence, segment) {
                 addFilter(filter);
                 stream++;
             }
+            else if (event.type === 'dialog') {
+                dialogFilters += ", drawtext=enable='between(t," +
+                    (event.segmentOffset / 1000) + "," +
+                    ((event.segmentOffset + event.duration) / 1000) +
+                    ")':x=(main_w-text_w)/2:y=500:fontsize=30:expansion=none:text='" +
+                    event.dialog.replace(/\\/, '\\\\').replace(/'/g, "\u2019") +
+                    "'";
+            }
         }
         if (stream > firstStream) {
             let filter = '';
             for (let i = firstStream; i < stream; i++) {
                 filter += '[stream' + i + '] ';
             }
-            filter += 'concat=n=' + (stream - firstStream) + ' [thread' + thread + ']';
+            // pad=height=800:color=white, \
+            filter += 'concat=n=' + (stream - firstStream) + dialogFilters + ' [thread' + thread + ']';
             addFilter(filter);
             threads.push(thread);
         }
@@ -110,6 +121,7 @@ Script.prototype.ffmpeg = function (mediaSequence, segment) {
         '-segment_start_number', mediaSequence,
         '-frames:v', SEGMENT_FRAMES,
         'segment_%010d.ts');
+    // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
     child_process.execFileSync('ffmpeg', args);
 };
 
@@ -136,7 +148,13 @@ Script.prototype.sortThreads = function (segment) {
 };
 
 Script.prototype.getSegments = function* () {
-    for (let segment of this.collateEvents()) {
+    yield* this.removeEmptyThreads(
+        this.collateEvents(
+            doCompileScript(new Date(), this.manifest, this.root, this.scripts)));
+};
+
+Script.prototype.removeEmptyThreads = function* (segments) {
+    for (let segment of segments) {
         for (let kv of segment.eventsByThread) {
             let thread = kv[0], events = kv[1];
             if (events.length === 1 && events[0].type === 'nothing') {
@@ -147,14 +165,19 @@ Script.prototype.getSegments = function* () {
     }
 };
 
-Script.prototype.collateEvents = function* () {
+Script.prototype.collateEvents = function* (eventStream) {
     let eventsByThread = new Map();
+    let lastDialogEvent = null;
     let startOffset = null;
-    for (let event of doCompileScript(new Date(), this.manifest, this.root, this.scripts)) {
+    for (let event of eventStream) {
         if (startOffset === null) {
             startOffset = event.offset;
         }
-        else if (event.offset - startOffset >= SEGMENT_DURATION) {
+        if (event.offset - startOffset >= SEGMENT_DURATION) {
+            if (lastDialogEvent) {
+                lastDialogEvent.duration = startOffset + SEGMENT_DURATION - lastDialogEvent.offset;
+                lastDialogEvent = Object.assign({}, lastDialogEvent);
+            }
             yield {
                 startOffset: startOffset,
                 eventsByThread: eventsByThread
@@ -168,15 +191,31 @@ Script.prototype.collateEvents = function* () {
                         newEvent.startFrame = (newEvent.startFrame || 0) + playedDuration / FRAME_MS;
                         newEvent.offset += playedDuration;
                         newEvent.duration -= playedDuration;
+                        newEvent.segmentOffset = 0;
                         events.push(newEvent);
                     }
                 }
                 return [kv[0], events];
             }));
-            startOffset = event.offset;
+            startOffset += SEGMENT_DURATION;
+            if (lastDialogEvent) {
+                lastDialogEvent.offset = startOffset;
+                lastDialogEvent.segmentOffset = 0;
+            }
         }
+        event.segmentOffset = event.offset - startOffset;
         let thread = typeof event.thread === 'number' ? event.thread : 'main';
         let events = eventsByThread.get(thread);
+        if (event.type === 'clear-dialog') {
+            if (lastDialogEvent) {
+                lastDialogEvent.duration = event.offset - lastDialogEvent.offset;
+                lastDialogEvent = null;
+            }
+            continue;
+        }
+        if (event.type === 'dialog') {
+            lastDialogEvent = event;
+        }
         if (!events) {
             eventsByThread.set(thread, events = []);
         }
