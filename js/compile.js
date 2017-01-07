@@ -4,11 +4,14 @@ var FRAME_RATE = 12.5;
 var FRAME_MS = 1000 / FRAME_RATE;
 var SEGMENT_FRAMES = 32;
 var SEGMENT_DURATION = SEGMENT_FRAMES * FRAME_MS;
+var DIALOG_PER_LINE = 60;
+var DIALOG_COLORS = ['#333399', '#993333'];
 
 var fs = require('fs');
 var child_process = require('child_process');
 var Path = require('path');
 var PEG = require('pegjs');
+var wordwrap = require('wordwrap')(DIALOG_PER_LINE);
 var doCompileScript = require('./compiler');
 
 function readFile(path) {
@@ -85,12 +88,7 @@ Script.prototype.ffmpeg = function (mediaSequence, segment) {
                 stream++;
             }
             else if (event.type === 'dialog') {
-                dialogFilters += ", drawtext=enable='between(n," +
-                    (event.segmentOffset / FRAME_MS) + "," +
-                    ((event.segmentOffset + event.duration) / FRAME_MS - 1) +
-                    ")':x=(main_w-text_w)/2:y=500:fontsize=30:expansion=none:text='" +
-                    event.dialog.replace(/\\/, '\\\\').replace(/'/g, "\u2019") +
-                    "'";
+                dialogFilters += ', ' + this.createDialogFilter(event);
             }
         }
         if (stream > firstStream) {
@@ -99,7 +97,8 @@ Script.prototype.ffmpeg = function (mediaSequence, segment) {
                 filter += '[stream' + i + '] ';
             }
             // pad=height=800:color=white, \
-            filter += 'concat=n=' + (stream - firstStream) + dialogFilters + ' [thread' + thread + ']';
+            filter += 'concat=n=' + (stream - firstStream) +
+                ', pad=height=800:color=white' + dialogFilters + ' [thread' + thread + ']';
             addFilter(filter);
             threads.push(thread);
         }
@@ -123,6 +122,25 @@ Script.prototype.ffmpeg = function (mediaSequence, segment) {
         'segment_%010d.ts');
     // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
     child_process.execFileSync('ffmpeg', args);
+};
+
+Script.prototype.createDialogFilter = function (event) {
+    var lines = wordwrap(event.dialog.replace(/\\/, '\\\\').replace(/'/g, "\u2019"))
+        .split(/[\r\n]+/);
+    var filter = '';
+    var lineOffset = -lines.length / 2;
+    for (let i = 0; i < lines.length; i++) {
+        if (filter) {
+            filter += ', ';
+        }
+        filter += "drawtext=enable='between(n," +
+            (event.segmentOffset / FRAME_MS) + "," +
+            ((event.segmentOffset + event.duration) / FRAME_MS - 1) + "')" +
+            ":x=(main_w-text_w)/2:y=(760+" + (lineOffset + i) + "*text_h)" +
+            ":fontsize=30:fontcolor=" + (DIALOG_COLORS[event.pos] || 'black') +
+            ":expansion=none:text='" + lines[i] + "'";
+    }
+    return filter;
 };
 
 Script.prototype.getAnimFilePattern = function (animName) {
@@ -150,7 +168,7 @@ Script.prototype.sortThreads = function (segment) {
 Script.prototype.getSegments = function* () {
     yield* this.removeEmptyThreads(
         this.collateEvents(
-            doCompileScript(new Date(), this.manifest, this.root, this.scripts)));
+            doCompileScript(new Date('2017-01-06 12:00:00'), this.manifest, this.root, this.scripts)));
 };
 
 Script.prototype.removeEmptyThreads = function* (segments) {

@@ -12,7 +12,8 @@
   "dependencies": {
     "connect": "^3.5.0",
     "promise-ring": "^0.1.0",
-    "serve-static": "^1.11.1"
+    "serve-static": "^1.11.1",
+    "wordwrap": "^1.0.0"
   },
   "devDependencies": {
     "chance": "^1.0.1",
