@@ -2,10 +2,11 @@
 
 var FRAME_RATE = 12.5;
 var FRAME_MS = 1000 / FRAME_RATE;
-var SEGMENT_FRAMES = 32;
+var SEGMENT_FRAMES = 50;
 var SEGMENT_DURATION = SEGMENT_FRAMES * FRAME_MS;
 var DIALOG_PER_LINE = 60;
 var DIALOG_COLORS = ['#333399', '#993333'];
+var DAY_MS = 24*60*60*1000;
 
 var fs = require('fs');
 var child_process = require('child_process');
@@ -34,22 +35,21 @@ function readScript(path) {
 function Script() {
 }
 
-Script.prototype.compile = function (scriptPath) {
-    return this.load(scriptPath).then(() => {
-        let i = 0;
-        let mediaSequence = 0;
-        for (let segment of this.getSegments()) {
-            if (segment.startOffset < 8 * 60 * 60 * 1000) {
-                continue;
-            }
-            // console.log('segment', mediaSequence, segment.startOffset, segment.eventsByThread);
-            this.ffmpeg(mediaSequence, segment);
-            mediaSequence++;
-            if (++i >= 10) {
-                break;
-            }
+Script.prototype.generate = function (startTime) {
+    let i = 0;
+    console.log('Seeking...');
+    for (let segment of this.getSegments(startTime)) {
+        if (segment.startOffset + SEGMENT_DURATION < startTime) {
+            continue;
         }
-    });
+        let mediaSequence = segment.startOffset / SEGMENT_DURATION;
+        console.log('segment', mediaSequence, new Date(segment.startOffset), segment.eventsByThread);
+        // this.ffmpeg(mediaSequence, segment);
+        // mediaSequence++;
+        if (++i >= 10) {
+            break;
+        }
+    }
 };
 
 Script.prototype.ffmpeg = function (mediaSequence, segment) {
@@ -165,10 +165,39 @@ Script.prototype.sortThreads = function (segment) {
     });
 };
 
-Script.prototype.getSegments = function* () {
+Script.prototype.getSegments = function* (startTime) {
+    let compileTime = startTime;
+    let gen = this.getSegmentsForDate(compileTime);
+    let next = gen.next();
+    // Rewind until we get to the right date.
+    while (next.value.startOffset > startTime) {
+        compileTime = new Date(compileTime.getTime() - DAY_MS);
+        gen = this.getSegmentsForDate(compileTime);
+        next = gen.next();
+    }
+    // Set up the script for the next date too.
+    compileTime = new Date(compileTime.getTime() + DAY_MS);
+    let tomorrowGen = this.getSegmentsForDate(compileTime);
+    let tomorrowNext = tomorrowGen.next();
+
+    while (true) {
+        if (next.done || tomorrowNext.value.startOffset <= next.value.startOffset) {
+            // Roll over to the next day.
+            gen = tomorrowGen;
+            next = tomorrowNext;
+            compileTime = new Date(compileTime.getTime() + DAY_MS);
+            tomorrowGen = this.getSegmentsForDate(compileTime);
+            tomorrowNext = tomorrowGen.next();
+        }
+        yield next.value;
+        next = gen.next();
+    }
+};
+
+Script.prototype.getSegmentsForDate = function* (startTime) {
     yield* this.removeEmptyThreads(
         this.collateEvents(
-            doCompileScript(new Date('2017-01-06 12:00:00'), this.manifest, this.root, this.scripts)));
+            doCompileScript(startTime, this.manifest, this.root, this.scripts)));
 };
 
 Script.prototype.removeEmptyThreads = function* (segments) {
@@ -189,11 +218,11 @@ Script.prototype.collateEvents = function* (eventStream) {
     let startOffset = null;
     for (let event of eventStream) {
         if (startOffset === null) {
-            startOffset = event.offset;
+            startOffset = event.globalOffset;
         }
-        if (event.offset - startOffset >= SEGMENT_DURATION) {
+        if (event.globalOffset - startOffset >= SEGMENT_DURATION) {
             if (lastDialogEvent) {
-                lastDialogEvent.duration = startOffset + SEGMENT_DURATION - lastDialogEvent.offset;
+                lastDialogEvent.duration = startOffset + SEGMENT_DURATION - lastDialogEvent.globalOffset;
                 lastDialogEvent = Object.assign({}, lastDialogEvent);
             }
             yield {
@@ -203,11 +232,11 @@ Script.prototype.collateEvents = function* (eventStream) {
             eventsByThread = new Map(Array.from(eventsByThread.entries()).map(kv => {
                 let events = [];
                 for (let event of kv[1]) {
-                    if (event.offset + event.duration > startOffset + SEGMENT_DURATION) {
+                    if (event.globalOffset + event.duration > startOffset + SEGMENT_DURATION) {
                         let newEvent = Object.assign({}, event);
-                        let playedDuration = startOffset + SEGMENT_DURATION - event.offset;
+                        let playedDuration = startOffset + SEGMENT_DURATION - event.globalOffset;
                         newEvent.startFrame = (newEvent.startFrame || 0) + playedDuration / FRAME_MS;
-                        newEvent.offset += playedDuration;
+                        newEvent.globalOffset += playedDuration;
                         newEvent.duration -= playedDuration;
                         newEvent.segmentOffset = 0;
                         events.push(newEvent);
@@ -217,7 +246,7 @@ Script.prototype.collateEvents = function* (eventStream) {
             }));
             startOffset += SEGMENT_DURATION;
             if (lastDialogEvent) {
-                lastDialogEvent.offset = startOffset;
+                lastDialogEvent.globalOffset = startOffset;
                 lastDialogEvent.segmentOffset = 0;
                 let mainEvents = eventsByThread.get('main');
                 if (!mainEvents) {
@@ -226,12 +255,12 @@ Script.prototype.collateEvents = function* (eventStream) {
                 mainEvents.unshift(lastDialogEvent);
             }
         }
-        event.segmentOffset = event.offset - startOffset;
+        event.segmentOffset = event.globalOffset - startOffset;
         let thread = typeof event.thread === 'number' ? event.thread : 'main';
         let events = eventsByThread.get(thread);
         if (event.type === 'clear-dialog') {
             if (lastDialogEvent) {
-                lastDialogEvent.duration = event.offset - lastDialogEvent.offset;
+                lastDialogEvent.duration = event.globalOffset - lastDialogEvent.globalOffset;
                 lastDialogEvent = null;
             }
             continue;
@@ -323,8 +352,9 @@ Script.prototype.parseIncludedScripts = function (script, parser) {
     }
 };
 
-new Script().compile('script.benji').then(events => {
-    fs.writeFileSync('events.json', JSON.stringify(events, null, 2));
+var script = new Script();
+script.load('script.benji').then(() => {
+    script.generate(new Date('Sun Jan 08 2017 06:59:32'));
 }).catch(err => {
     console.log(err.stack);
 });

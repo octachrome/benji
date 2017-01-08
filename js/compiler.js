@@ -145,6 +145,7 @@ function parseTime(time) {
 Compiler.prototype.addEvent = function(event, frames) {
     var ms = (frames || 0) / FRAME_RATE * 1000;
     event.offset = this.offset;
+    event.globalOffset = this.date.getTime() + this.offset;
     event.duration = ms;
     this.offset += ms;
     return event;
