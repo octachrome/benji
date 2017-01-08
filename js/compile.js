@@ -7,14 +7,18 @@ var SEGMENT_DURATION = SEGMENT_FRAMES * FRAME_MS;
 var DIALOG_PER_LINE = 60;
 var DIALOG_COLORS = ['#333399', '#993333'];
 var DAY_MS = 24*60*60*1000;
-var GENERATE_WINDOW = 10*1000;
+var ACTIVE_SEGMENTS = 5;
 var POLL_INTERVAL = 100;
+var SEGMENT_FILENAME = 'segment_%010d.ts';
 
 var fs = require('fs');
 var child_process = require('child_process');
 var Path = require('path');
 var PEG = require('pegjs');
 var wordwrap = require('wordwrap')(DIALOG_PER_LINE);
+var serveStatic = require('serve-static');
+var connect = require('connect');
+var sprintf = require('sprintf-js').sprintf;
 var doCompileScript = require('./compiler');
 
 function readFile(path) {
@@ -37,7 +41,7 @@ function readScript(path) {
 function Script() {
 }
 
-Script.prototype.generate = function (startTime) {
+Script.prototype.startGenerator = function (startTime) {
     var timeOffset = new Date().getTime() - startTime;
     var segmentStream = this.getSegments(startTime);
     var next = segmentStream.next();
@@ -51,17 +55,17 @@ Script.prototype.generate = function (startTime) {
         next = segmentStream.next();
     }
 
-    let workingSet = new Map();
+    this.workingSet = new Map();
 
-    function tick() {
+    let tick = () => {
         // Clean up expired segments.
-        for (let kv of workingSet) {
+        for (let kv of this.workingSet) {
             let seq = kv[0];
             let segment = kv[1];
             if (segment.startOffset + SEGMENT_DURATION < currentTimestamp()) {
                 // Segment has ended.
                 // todo: delete file
-                workingSet.delete(seq);
+                this.workingSet.delete(seq);
             }
         }
 
@@ -72,11 +76,11 @@ Script.prototype.generate = function (startTime) {
                 // Segment has already ended.
                 next = segmentStream.next();
             }
-            else if (segment.startOffset < currentTimestamp() + GENERATE_WINDOW) {
+            else if (segment.startOffset < currentTimestamp() + ACTIVE_SEGMENTS * SEGMENT_DURATION) {
                 // Segment should be generated.
                 let mediaSequence = segment.startOffset / SEGMENT_DURATION;
-                console.log('Generating', mediaSequence);
-                workingSet.set(mediaSequence, segment);
+                this.ffmpeg(segment);
+                this.workingSet.set(mediaSequence, segment);
                 next = segmentStream.next();
             }
             else {
@@ -84,17 +88,60 @@ Script.prototype.generate = function (startTime) {
             }
         }
 
-        console.log(Array.from(workingSet.keys()).sort());
-
         if (!next.done) {
             setTimeout(tick, POLL_INTERVAL);
         }
-    }
+    };
 
     setTimeout(tick, POLL_INTERVAL);
 };
 
-Script.prototype.ffmpeg = function (mediaSequence, segment) {
+Script.prototype.startServer = function () {
+    let app = connect();
+    app.use('/segments.m3u8', (req, res, next) => {
+        this.writePlaylist(req, res, next);
+    });
+    app.use('/', serveStatic(Path.join(__dirname, '..')));
+    let server = app.listen(8080);
+    server.on('error', function (err) {
+        console.error(err);
+    });
+};
+
+Script.prototype.writePlaylist = function (req, res, next) {
+    var sequenceNumbers = this.workingSet ? Array.from(this.workingSet.keys()).sort() : [];
+    let ready = [];
+    for (let i = 0; i < sequenceNumbers.length; i++) {
+        let seq = sequenceNumbers[i];
+        let segment = this.workingSet.get(seq);
+        if (segment.status !== 'ready') {
+            break;
+        }
+        if (i === 0 || seq === sequenceNumbers[i - 1] + 1) {
+            ready.push(seq);
+        }
+    }
+    if (!ready.length) {
+        setTimeout(() => this.writePlaylist(req, res, next), 50);
+    }
+    else {
+        var playlistText = '#EXTM3U\n' +
+            '#EXT-X-VERSION:3\n' +
+            '#EXT-X-MEDIA-SEQUENCE:' + ready[0] + '\n' +
+            '#EXT-X-ALLOW-CACHE:YES\n' +
+            '#EXT-X-TARGETDURATION:' + (SEGMENT_DURATION / 1000) + '\n' +
+            ready.map((seq) =>
+                '#EXTINF:' + (SEGMENT_DURATION / 1000) + ',\n' +
+                sprintf(SEGMENT_FILENAME, seq) + '\n');
+        res.writeHead(200, {
+            'Content-Type': 'application/vnd.apple.mpegurl'
+        });
+        res.end(playlistText);
+    }
+};
+
+Script.prototype.ffmpeg = function (segment) {
+    let mediaSequence = segment.startOffset / SEGMENT_DURATION;
     let args = ['-y'];
     let filters = '';
     function addFilter(filter) {
@@ -161,9 +208,16 @@ Script.prototype.ffmpeg = function (mediaSequence, segment) {
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
         '-segment_start_number', mediaSequence,
         '-frames:v', SEGMENT_FRAMES,
-        'segment_%010d.ts');
+        SEGMENT_FILENAME);
+
+    segment.status = 'preparing';
     // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
-    child_process.execFileSync('ffmpeg', args);
+    child_process.execFile('ffmpeg', args, function (err, stdout, stderr) {
+        if (err) {
+            console.error(err);
+        }
+        segment.status = 'ready';
+    });
 };
 
 Script.prototype.createDialogFilter = function (event) {
@@ -396,7 +450,8 @@ Script.prototype.parseIncludedScripts = function (script, parser) {
 
 var script = new Script();
 script.load('script.benji').then(() => {
-    script.generate(new Date());
+    script.startServer();
+    script.startGenerator(new Date());
 }).catch(err => {
     console.log(err.stack);
 });
