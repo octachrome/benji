@@ -10,6 +10,7 @@ var DAY_MS = 24*60*60*1000;
 var ACTIVE_SEGMENTS = 5;
 var POLL_INTERVAL = 100;
 var SEGMENT_FILENAME = 'segment_%010d.ts';
+var DELETE_DELAY = 5000;
 
 var fs = require('fs');
 var child_process = require('child_process');
@@ -64,8 +65,10 @@ Script.prototype.startGenerator = function (startTime) {
             let segment = kv[1];
             if (segment.startOffset + SEGMENT_DURATION < currentTimestamp()) {
                 // Segment has ended.
-                // todo: delete file
                 this.workingSet.delete(seq);
+                setTimeout(() => {
+                    fs.unlink(sprintf(SEGMENT_FILENAME, seq));
+                }, DELETE_DELAY);
             }
         }
 
