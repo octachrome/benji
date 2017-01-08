@@ -7,6 +7,8 @@ var SEGMENT_DURATION = SEGMENT_FRAMES * FRAME_MS;
 var DIALOG_PER_LINE = 60;
 var DIALOG_COLORS = ['#333399', '#993333'];
 var DAY_MS = 24*60*60*1000;
+var GENERATE_WINDOW = 10*1000;
+var POLL_INTERVAL = 100;
 
 var fs = require('fs');
 var child_process = require('child_process');
@@ -36,20 +38,60 @@ function Script() {
 }
 
 Script.prototype.generate = function (startTime) {
-    let i = 0;
+    var timeOffset = new Date().getTime() - startTime;
+    var segmentStream = this.getSegments(startTime);
+    var next = segmentStream.next();
+
+    function currentTimestamp() {
+        return new Date().getTime() - timeOffset;
+    }
+
     console.log('Seeking...');
-    for (let segment of this.getSegments(startTime)) {
-        if (segment.startOffset + SEGMENT_DURATION < startTime) {
-            continue;
+    while (!next.done && next.value.startOffset + SEGMENT_DURATION < currentTimestamp()) {
+        next = segmentStream.next();
+    }
+
+    let workingSet = new Map();
+
+    function tick() {
+        // Clean up expired segments.
+        for (let kv of workingSet) {
+            let seq = kv[0];
+            let segment = kv[1];
+            if (segment.startOffset + SEGMENT_DURATION < currentTimestamp()) {
+                // Segment has ended.
+                // todo: delete file
+                workingSet.delete(seq);
+            }
         }
-        let mediaSequence = segment.startOffset / SEGMENT_DURATION;
-        console.log('segment', mediaSequence, new Date(segment.startOffset), segment.eventsByThread);
-        // this.ffmpeg(mediaSequence, segment);
-        // mediaSequence++;
-        if (++i >= 10) {
-            break;
+
+        // Add new segments.
+        while (!next.done) {
+            let segment = next.value;
+            if (segment.startOffset + SEGMENT_DURATION < currentTimestamp()) {
+                // Segment has already ended.
+                next = segmentStream.next();
+            }
+            else if (segment.startOffset < currentTimestamp() + GENERATE_WINDOW) {
+                // Segment should be generated.
+                let mediaSequence = segment.startOffset / SEGMENT_DURATION;
+                console.log('Generating', mediaSequence);
+                workingSet.set(mediaSequence, segment);
+                next = segmentStream.next();
+            }
+            else {
+                break;
+            }
+        }
+
+        console.log(Array.from(workingSet.keys()).sort());
+
+        if (!next.done) {
+            setTimeout(tick, POLL_INTERVAL);
         }
     }
+
+    setTimeout(tick, POLL_INTERVAL);
 };
 
 Script.prototype.ffmpeg = function (mediaSequence, segment) {
@@ -354,7 +396,7 @@ Script.prototype.parseIncludedScripts = function (script, parser) {
 
 var script = new Script();
 script.load('script.benji').then(() => {
-    script.generate(new Date('Sun Jan 08 2017 06:59:32'));
+    script.generate(new Date());
 }).catch(err => {
     console.log(err.stack);
 });
