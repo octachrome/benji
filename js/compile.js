@@ -11,6 +11,7 @@ var ACTIVE_SEGMENTS = 5;
 var POLL_INTERVAL = 100;
 var SEGMENT_FILENAME = 'segment_%010d.ts';
 var DELETE_DELAY = 5000;
+var WORKERS = [];
 
 var fs = require('fs');
 var child_process = require('child_process');
@@ -40,6 +41,8 @@ function readScript(path) {
 }
 
 function Script() {
+    this.running = 0;
+    this.waiting = [];
 }
 
 Script.prototype.startGenerator = function (startTime) {
@@ -67,7 +70,8 @@ Script.prototype.startGenerator = function (startTime) {
                 // Segment has ended.
                 this.workingSet.delete(seq);
                 setTimeout(() => {
-                    fs.unlink(sprintf(SEGMENT_FILENAME, seq));
+                    // todo: abort running ffmpeg, and ensure file is eventually deleted
+                    fs.unlink(sprintf(SEGMENT_FILENAME, seq), () => 0);
                 }, DELETE_DELAY);
             }
         }
@@ -82,7 +86,7 @@ Script.prototype.startGenerator = function (startTime) {
             else if (segment.startOffset < currentTimestamp() + ACTIVE_SEGMENTS * SEGMENT_DURATION) {
                 // Segment should be generated.
                 let mediaSequence = segment.startOffset / SEGMENT_DURATION;
-                this.ffmpeg(segment);
+                this.enqueue((done) => this.ffmpeg(segment, done));
                 this.workingSet.set(mediaSequence, segment);
                 next = segmentStream.next();
             }
@@ -96,7 +100,21 @@ Script.prototype.startGenerator = function (startTime) {
         }
     };
 
+    console.log('Running...');
     setTimeout(tick, POLL_INTERVAL);
+};
+
+Script.prototype.enqueue = function (fn) {
+    if (this.running.length < WORKERS) {
+        fn(() => {
+            while (this.waiting.length && this.running.length < WORKERS) {
+                this.enqueue(this.waiting.shift());
+            }
+        });
+    }
+    else {
+        this.waiting.push(fn);
+    }
 };
 
 Script.prototype.startServer = function () {
@@ -143,7 +161,7 @@ Script.prototype.writePlaylist = function (req, res, next) {
     }
 };
 
-Script.prototype.ffmpeg = function (segment) {
+Script.prototype.ffmpeg = function (segment, done) {
     let mediaSequence = segment.startOffset / SEGMENT_DURATION;
     let args = ['-y'];
     let filters = '';
@@ -153,10 +171,12 @@ Script.prototype.ffmpeg = function (segment) {
         }
         filters += filter;
     }
-    let stream = 0;
+    let videoStream = 0;
+    let audioStream = 0;
+    let inputStream = 0;
     let threads = [];
     for (let thread of this.sortThreads(segment)) {
-        let firstStream = stream;
+        let firstVideoStream = videoStream;
         let events = segment.eventsByThread.get(thread);
         let dialogFilters = '';
         for (let event of events) {
@@ -167,7 +187,7 @@ Script.prototype.ffmpeg = function (segment) {
                 }
                 args.push('-i', this.getAnimFilePattern(event.anim));
 
-                let filter = '[' + stream + ':0] ';
+                let filter = '[' + (inputStream++) + ':0] ';
                 if (event.repeat) {
                      filter += 'loop=loop=' + event.repeat + ' ';
                 }
@@ -175,28 +195,46 @@ Script.prototype.ffmpeg = function (segment) {
                     // null is a nop
                     filter += 'null ';
                 }
-                filter += '[stream' + stream + ']';
+                filter += '[vstream' + (videoStream++) + ']';
                 addFilter(filter);
-                stream++;
+
+                let audio = this.getAudioPath(event.anim);
+                if (audio) {
+                    if (event.startFrame) {
+                        args.push('-ss', event.startFrame * FRAME_MS / 1000);
+                    }
+                    args.push('-i', audio);
+                    let filter = '[' + (inputStream++) + ':0] ';
+                    let localOffset = event.globalOffset - segment.startOffset;
+                    if (localOffset > 0) {
+                        filter += 'adelay=' + localOffset + '|' + localOffset;
+                    }
+                    else {
+                        filter += 'anull';
+                    }
+                    filter += ' [astream' + (audioStream++) + ']';
+                    addFilter(filter);
+                }
             }
             else if (event.type === 'dialog') {
                 dialogFilters += ', ' + this.createDialogFilter(event);
             }
         }
-        if (stream > firstStream) {
+        if (videoStream > firstVideoStream) {
             let filter = '';
-            for (let i = firstStream; i < stream; i++) {
-                filter += '[stream' + i + '] ';
+            for (let i = firstVideoStream; i < videoStream; i++) {
+                filter += '[vstream' + i + '] ';
             }
             // pad=height=800:color=white, \
-            filter += 'concat=n=' + (stream - firstStream) +
+            filter += 'concat=n=' + (videoStream - firstVideoStream) +
                 ', pad=height=800:color=white' + dialogFilters + ' [thread' + thread + ']';
             addFilter(filter);
             threads.push(thread);
         }
     }
+    let videoMap;
     if (threads.length === 1) {
-        args.push('-filter_complex', filters, '-map', '[thread' + threads[0] + ']');
+        videoMap = '[thread' + threads[0] + ']';
     }
     else {
         let overlay = 0;
@@ -204,21 +242,35 @@ Script.prototype.ffmpeg = function (segment) {
         for (let i = 2; i < threads.length; i++) {
             addFilter('[overlay' + overlay + '] [thread' + threads[i] + '] overlay [overlay' + (++overlay) + ']');
         }
-        args.push('-filter_complex', filters, '-map', '[overlay' + overlay + ']');
+        videoMap = '[overlay' + overlay + ']';
+    }
+    if (audioStream > 0) {
+        let filter = '';
+        for (let i = 0; i < audioStream; i++) {
+            filter += '[astream' + i + '] ';
+        }
+        filter += 'amix=inputs=' + audioStream + ' [audiomix]';
+        addFilter(filter);
+    }
+    args.push('-filter_complex', filters, '-map', videoMap);
+    if (audioStream > 0) {
+        args.push('-map', '[audiomix]');
     }
     args.push('-vcodec', 'libx264', '-acodec', 'aac',
         '-f', 'segment', '-initial_offset', (mediaSequence * SEGMENT_DURATION / 1000),
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
         '-segment_start_number', mediaSequence,
-        '-frames:v', SEGMENT_FRAMES,
+        // '-frames:v', SEGMENT_FRAMES,
+        '-t', (SEGMENT_DURATION / 1000),
         SEGMENT_FILENAME);
 
     segment.status = 'preparing';
     // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
-    child_process.execFile('ffmpeg', args, function (err, stdout, stderr) {
+    child_process.execFile('ffmpeg', args, (err, stdout, stderr) => {
         if (err) {
             console.error(err);
         }
+        done && done();
         segment.status = 'ready';
     });
 };
@@ -248,6 +300,14 @@ Script.prototype.getAnimFilePattern = function (animName) {
         throw new Error('Unknown anim ' + animName);
     }
     return anim.pattern;
+};
+
+Script.prototype.getAudioPath = function (animName) {
+    var anim = this.manifest[animName];
+    if (!anim) {
+        throw new Error('Unknown anim ' + animName);
+    }
+    return anim.audio;
 };
 
 Script.prototype.sortThreads = function (segment) {
@@ -454,7 +514,7 @@ Script.prototype.parseIncludedScripts = function (script, parser) {
 var script = new Script();
 script.load('script.benji').then(() => {
     script.startServer();
-    script.startGenerator(new Date());
+    script.startGenerator(new Date('2016-01-01 12:00:00'));
 }).catch(err => {
     console.log(err.stack);
 });
