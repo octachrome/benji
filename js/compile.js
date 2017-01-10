@@ -11,7 +11,7 @@ var ACTIVE_SEGMENTS = 5;
 var POLL_INTERVAL = 100;
 var SEGMENT_FILENAME = 'segment_%010d.ts';
 var DELETE_DELAY = 5000;
-var WORKERS = [];
+var WORKERS = 1;
 
 var fs = require('fs');
 var child_process = require('child_process');
@@ -105,7 +105,7 @@ Script.prototype.startGenerator = function (startTime) {
 };
 
 Script.prototype.enqueue = function (fn) {
-    if (this.running.length < WORKERS) {
+    if (this.running < WORKERS) {
         fn(() => {
             while (this.waiting.length && this.running.length < WORKERS) {
                 this.enqueue(this.waiting.shift());
@@ -514,7 +514,7 @@ Script.prototype.parseIncludedScripts = function (script, parser) {
 var script = new Script();
 script.load('script.benji').then(() => {
     script.startServer();
-    script.startGenerator(new Date('2016-01-01 12:00:00'));
+    script.startGenerator(new Date('2016-01-01 07:00:01'));
 }).catch(err => {
     console.log(err.stack);
 });
