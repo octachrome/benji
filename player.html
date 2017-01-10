@@ -8,14 +8,12 @@
 <script>
   if(Hls.isSupported()) {
     var video = document.getElementById('video');
-    var hls = new Hls();
+    var hls = new Hls({
+      debug: true
+    });
     hls.loadSource('segments.m3u8');
-    // hls.loadSource('output/pogo.m3u8');
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED,function() {
-      // video.play();
-    });
-    document.body.addEventListener('click', function () {
       video.play();
     });
  }
