@@ -194,6 +194,9 @@ Script.prototype.ffmpeg = function (segment, done) {
                 if ((event.repeat || 1) > 1) {
                      filter += 'loop=loop=' + event.repeat + ' ';
                 }
+                else if (event.playFrames) {
+                     filter += "select='lt(n," + event.playFrames + ")' ";
+                }
                 else {
                     // null is a nop
                     filter += 'null ';
@@ -263,6 +266,7 @@ Script.prototype.ffmpeg = function (segment, done) {
         '-f', 'segment', '-initial_offset', (mediaSequence * SEGMENT_DURATION / 1000),
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
         '-segment_start_number', mediaSequence,
+        // todo: use 'select' filter
         // '-frames:v', SEGMENT_FRAMES,
         '-t', (SEGMENT_DURATION / 1000),
         SEGMENT_FILENAME);
@@ -363,15 +367,29 @@ Script.prototype.getSegments = function* (startTime) {
 };
 
 Script.prototype.getSegmentsForDate = function* (startTime) {
-    yield* this.removeEmptyThreads(
+    yield* this.simplifySegments(
         this.collateEvents(
             doCompileScript(startTime, this.manifest, this.root, this.scripts)));
 };
 
-Script.prototype.removeEmptyThreads = function* (segments) {
+Script.prototype.simplifySegments = function* (segments) {
     for (let segment of segments) {
         for (let kv of segment.eventsByThread) {
             let thread = kv[0], events = kv[1];
+            // Combine duplicate events.
+            for (let i = 1; i < events.length; i++) {
+                let event = events[i];
+                let prevEvent = events[i - 1];
+                if (prevEvent.type === 'play' && event.type === 'play' &&
+                    prevEvent.anim === event.anim &&
+                    (prevEvent.startFrame || 0) === (event.startFrame || 0) &&
+                    prevEvent.playFrames === event.playFrames) {
+                    prevEvent.repeat = (prevEvent.repeat || 1) + 1;
+                    events.splice(i, 1);
+                    i--;
+                }
+            }
+            // Remove empty threads.
             if (events.length === 0 || (events.length === 1 &&
                 events[0].type === 'play' && events[0].anim === 'nothing')) {
                 segment.eventsByThread.delete(thread);
@@ -416,7 +434,8 @@ Script.prototype.collateEvents = function* (eventStream) {
                         newEvent.globalOffset += totalPlayedDuration;
                         newEvent.duration = remainingDuration;
                         newEvent.segmentOffset = 0;
-                        newEvent.repeat = 1;
+                        delete newEvent.repeat;
+                        delete newEvent.playFrames;
                         events.push(newEvent);
                     }
                 }
@@ -453,12 +472,15 @@ Script.prototype.collateEvents = function* (eventStream) {
         if (!events) {
             eventsByThread.set(thread, events = []);
         }
-        let lastEvent = events[events.length - 1];
-        if (lastEvent && lastEvent.type === 'play' && event.type === 'play' &&
-            lastEvent.anim === event.anim && (lastEvent.startFrame || 0) === (event.startFrame || 0)) {
-            lastEvent.repeat = (lastEvent.repeat || 1) + 1;
+        let prevEvent = events[events.length - 1];
+        if (prevEvent && (prevEvent.globalOffset + prevEvent.duration > event.globalOffset)) {
+            // Events overlap - truncate the previous event.
+            prevEvent.playFrames = (event.segmentOffset - prevEvent.segmentOffset) / FRAME_MS;
+            if (prevEvent.playFrames === 0) {
+                events.pop();
+            }
         }
-        else if (event.type !== 'bgswitch') {
+        if (event.type !== 'bgswitch') {
             events.push(event);
         }
     }
@@ -537,7 +559,7 @@ Script.prototype.parseIncludedScripts = function (script, parser) {
 var script = new Script();
 script.load('script.benji').then(() => {
     script.startServer();
-    script.startGenerator(new Date('2016-01-01 07:01:20'));
+    script.startGenerator(new Date('2016-01-01 07:01:00'));
 }).catch(err => {
     console.log(err.stack);
 });
