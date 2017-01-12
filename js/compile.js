@@ -56,6 +56,8 @@ Script.prototype.startGenerator = function (startTime) {
 
     console.log('Seeking...');
     while (!next.done && next.value.startOffset + SEGMENT_DURATION < currentTimestamp()) {
+        let segment = next.value;
+        // console.log('segment', segment.startOffset, segment.eventsByThread);
         next = segmentStream.next();
     }
 
@@ -87,6 +89,7 @@ Script.prototype.startGenerator = function (startTime) {
                 // Segment should be generated.
                 let mediaSequence = segment.startOffset / SEGMENT_DURATION;
                 this.enqueue((done) => this.ffmpeg(segment, done));
+                // console.log('segment', segment.startOffset, segment.eventsByThread);
                 this.workingSet.set(mediaSequence, segment);
                 next = segmentStream.next();
             }
@@ -188,7 +191,7 @@ Script.prototype.ffmpeg = function (segment, done) {
                 args.push('-i', this.getAnimFilePattern(event.anim));
 
                 let filter = '[' + (inputStream++) + ':0] ';
-                if (event.repeat) {
+                if ((event.repeat || 1) > 1) {
                      filter += 'loop=loop=' + event.repeat + ' ';
                 }
                 else {
@@ -295,6 +298,9 @@ Script.prototype.createDialogFilter = function (event) {
 };
 
 Script.prototype.getAnimFilePattern = function (animName) {
+    if (animName === 'nothing') {
+        return 'Blank.png';
+    }
     var anim = this.manifest[animName];
     if (!anim) {
         throw new Error('Unknown anim ' + animName);
@@ -303,6 +309,9 @@ Script.prototype.getAnimFilePattern = function (animName) {
 };
 
 Script.prototype.getAudioPath = function (animName) {
+    if (animName === 'nothing') {
+        return null;
+    }
     var anim = this.manifest[animName];
     if (!anim) {
         throw new Error('Unknown anim ' + animName);
@@ -363,7 +372,8 @@ Script.prototype.removeEmptyThreads = function* (segments) {
     for (let segment of segments) {
         for (let kv of segment.eventsByThread) {
             let thread = kv[0], events = kv[1];
-            if (events.length === 1 && events[0].type === 'nothing') {
+            if (events.length === 0 || (events.length === 1 &&
+                events[0].type === 'play' && events[0].anim === 'nothing')) {
                 segment.eventsByThread.delete(thread);
             }
         }
@@ -376,6 +386,7 @@ Script.prototype.collateEvents = function* (eventStream) {
     let lastDialogEvent = null;
     let startOffset = null;
     for (let event of eventStream) {
+        // console.log(event);
         if (startOffset === null) {
             startOffset = event.globalOffset;
         }
@@ -391,13 +402,21 @@ Script.prototype.collateEvents = function* (eventStream) {
             eventsByThread = new Map(Array.from(eventsByThread.entries()).map(kv => {
                 let events = [];
                 for (let event of kv[1]) {
-                    if (event.globalOffset + event.duration > startOffset + SEGMENT_DURATION) {
+                    if (event.globalOffset + (event.duration * (event.repeat || 1)) >
+                        startOffset + SEGMENT_DURATION) {
                         let newEvent = Object.assign({}, event);
-                        let playedDuration = startOffset + SEGMENT_DURATION - event.globalOffset;
+                        // Time remaining in the last loop of the animation.
+                        let remainingDuration = event.globalOffset + (event.duration * (event.repeat || 1)) -
+                            (startOffset + SEGMENT_DURATION);
+                        // Just of one loop through the animation.
+                        let playedDuration = event.duration - remainingDuration;
+                        // Including repeats.
+                        let totalPlayedDuration = (event.duration * (event.repeat || 1)) - remainingDuration;
                         newEvent.startFrame = (newEvent.startFrame || 0) + playedDuration / FRAME_MS;
-                        newEvent.globalOffset += playedDuration;
-                        newEvent.duration -= playedDuration;
+                        newEvent.globalOffset += totalPlayedDuration;
+                        newEvent.duration = remainingDuration;
                         newEvent.segmentOffset = 0;
+                        newEvent.repeat = 1;
                         events.push(newEvent);
                     }
                 }
@@ -427,15 +446,19 @@ Script.prototype.collateEvents = function* (eventStream) {
         if (event.type === 'dialog') {
             lastDialogEvent = event;
         }
+        if (event.type === 'nothing') {
+            event.type = 'play';
+            event.anim = 'nothing';
+        }
         if (!events) {
             eventsByThread.set(thread, events = []);
         }
         let lastEvent = events[events.length - 1];
-        if (lastEvent && (lastEvent.type === 'play' || lastEvent.type === 'nothing') &&
-            lastEvent.type === event.type && lastEvent.anim === event.anim && lastEvent.startFrame === event.startFrame) {
+        if (lastEvent && lastEvent.type === 'play' && event.type === 'play' &&
+            lastEvent.anim === event.anim && (lastEvent.startFrame || 0) === (event.startFrame || 0)) {
             lastEvent.repeat = (lastEvent.repeat || 1) + 1;
         }
-        else {
+        else if (event.type !== 'bgswitch') {
             events.push(event);
         }
     }
@@ -514,7 +537,7 @@ Script.prototype.parseIncludedScripts = function (script, parser) {
 var script = new Script();
 script.load('script.benji').then(() => {
     script.startServer();
-    script.startGenerator(new Date('2016-01-01 07:00:01'));
+    script.startGenerator(new Date('2016-01-01 07:01:20'));
 }).catch(err => {
     console.log(err.stack);
 });
