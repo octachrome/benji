@@ -261,10 +261,10 @@ Script.prototype.ffmpeg = function (segment, done) {
 
     segment.status = 'preparing';
 
-    console.log('segment', segment.startOffset, segment.eventsByThread);
-    console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
-    setTimeout(done, 0);
-    return;
+    // console.log('segment', segment.startOffset, segment.eventsByThread);
+    // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
+    // setTimeout(done, 0);
+    // return;
 
     child_process.execFile('ffmpeg', args, (err, stdout, stderr) => {
         if (err) {
@@ -449,6 +449,7 @@ Script.prototype.splitEvents = function* (eventStream) {
             newEvent.duration = overrun;
             newEvent.offset += playedDuration;
             newEvent.globalOffset += playedDuration;
+            newEvent.startFrame = (event.startFrame || 1) + (playedDuration / FRAME_MS);
             eventQueue.push(newEvent);
         }
         yield event;
