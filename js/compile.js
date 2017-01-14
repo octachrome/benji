@@ -3,7 +3,7 @@
 var FRAME_RATE = 12.5;
 var FRAME_MS = 1000 / FRAME_RATE;
 var SEGMENT_FRAMES = 50;
-var SEGMENT_DURATION = SEGMENT_FRAMES * FRAME_MS;
+var SEGMENT_MS = SEGMENT_FRAMES * FRAME_MS;
 var DIALOG_PER_LINE = 60;
 var DIALOG_COLORS = ['#333399', '#993333'];
 var DAY_MS = 24*60*60*1000;
@@ -55,7 +55,7 @@ Script.prototype.startGenerator = function (startTime) {
     }
 
     console.log('Seeking...');
-    while (!next.done && next.value.startOffset + SEGMENT_DURATION < currentTimestamp()) {
+    while (!next.done && next.value.startOffset + SEGMENT_MS < currentTimestamp()) {
         let segment = next.value;
         // console.log('segment', segment.startOffset, segment.eventsByThread);
         next = segmentStream.next();
@@ -68,7 +68,7 @@ Script.prototype.startGenerator = function (startTime) {
         for (let kv of this.workingSet) {
             let seq = kv[0];
             let segment = kv[1];
-            if (segment.startOffset + SEGMENT_DURATION < currentTimestamp()) {
+            if (segment.startOffset + SEGMENT_MS < currentTimestamp()) {
                 // Segment has ended.
                 this.workingSet.delete(seq);
                 setTimeout(() => {
@@ -81,15 +81,14 @@ Script.prototype.startGenerator = function (startTime) {
         // Add new segments.
         while (!next.done) {
             let segment = next.value;
-            if (segment.startOffset + SEGMENT_DURATION < currentTimestamp()) {
+            if (segment.startOffset + SEGMENT_MS < currentTimestamp()) {
                 // Segment has already ended.
                 next = segmentStream.next();
             }
-            else if (segment.startOffset < currentTimestamp() + ACTIVE_SEGMENTS * SEGMENT_DURATION) {
+            else if (segment.startOffset < currentTimestamp() + ACTIVE_SEGMENTS * SEGMENT_MS) {
                 // Segment should be generated.
-                let mediaSequence = segment.startOffset / SEGMENT_DURATION;
+                let mediaSequence = segment.startOffset / SEGMENT_MS;
                 this.enqueue((done) => this.ffmpeg(segment, done));
-                // console.log('segment', segment.startOffset, segment.eventsByThread);
                 this.workingSet.set(mediaSequence, segment);
                 next = segmentStream.next();
             }
@@ -153,9 +152,9 @@ Script.prototype.writePlaylist = function (req, res, next) {
             '#EXT-X-VERSION:3\n' +
             '#EXT-X-MEDIA-SEQUENCE:' + ready[0] + '\n' +
             '#EXT-X-ALLOW-CACHE:YES\n' +
-            '#EXT-X-TARGETDURATION:' + (SEGMENT_DURATION / 1000) + '\n' +
+            '#EXT-X-TARGETDURATION:' + (SEGMENT_MS / 1000) + '\n' +
             ready.map((seq) =>
-                '#EXTINF:' + (SEGMENT_DURATION / 1000) + ',\n' +
+                '#EXTINF:' + (SEGMENT_MS / 1000) + ',\n' +
                 sprintf(SEGMENT_FILENAME, seq) + '\n');
         res.writeHead(200, {
             'Content-Type': 'application/vnd.apple.mpegurl'
@@ -165,7 +164,7 @@ Script.prototype.writePlaylist = function (req, res, next) {
 };
 
 Script.prototype.ffmpeg = function (segment, done) {
-    let mediaSequence = segment.startOffset / SEGMENT_DURATION;
+    let mediaSequence = segment.startOffset / SEGMENT_MS;
     let args = ['-y'];
     let filters = '';
     function addFilter(filter) {
@@ -184,24 +183,13 @@ Script.prototype.ffmpeg = function (segment, done) {
         let dialogFilters = '';
         for (let event of events) {
             if (event.type === 'play') {
-                args.push('-r', '12.5');
-                if (event.startFrame) {
-                    args.push('-start_number', event.startFrame);
-                }
+                args.push('-r', '12.5', '-loop', 1);
                 args.push('-i', this.getAnimFilePattern(event.anim));
 
-                let filter = '[' + (inputStream++) + ':0] ';
-                if ((event.repeat || 1) > 1) {
-                     filter += 'loop=loop=' + event.repeat + ' ';
-                }
-                else if (event.playFrames) {
-                     filter += "select='lt(n," + event.playFrames + ")' ";
-                }
-                else {
-                    // null is a nop
-                    filter += 'null ';
-                }
-                filter += '[vstream' + (videoStream++) + ']';
+                let startFrame = (event.startFrame || 1);
+                let endFrame = startFrame + (event.duration / FRAME_MS);
+                let filter = '[' + (inputStream++) + ':0] trim=start_frame=' + startFrame +
+                    ':end_frame=' + endFrame + ' [vstream' + (videoStream++) + ']';
                 addFilter(filter);
 
                 let audio = this.getAudioPath(event.anim);
@@ -263,16 +251,21 @@ Script.prototype.ffmpeg = function (segment, done) {
         args.push('-map', '[audiomix]');
     }
     args.push('-vcodec', 'libx264', '-acodec', 'aac',
-        '-f', 'segment', '-initial_offset', (mediaSequence * SEGMENT_DURATION / 1000),
+        '-f', 'segment', '-initial_offset', (mediaSequence * SEGMENT_MS / 1000),
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
         '-segment_start_number', mediaSequence,
-        // todo: use 'select' filter
+        // todo: not great
         // '-frames:v', SEGMENT_FRAMES,
-        '-t', (SEGMENT_DURATION / 1000),
+        '-t', (SEGMENT_MS / 1000),
         SEGMENT_FILENAME);
 
     segment.status = 'preparing';
-    // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
+
+    console.log('segment', segment.startOffset, segment.eventsByThread);
+    console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
+    setTimeout(done, 0);
+    return;
+
     child_process.execFile('ffmpeg', args, (err, stdout, stderr) => {
         if (err) {
             console.error(err);
@@ -368,8 +361,11 @@ Script.prototype.getSegments = function* (startTime) {
 
 Script.prototype.getSegmentsForDate = function* (startTime) {
     yield* this.simplifySegments(
-        this.collateEvents(
-            doCompileScript(startTime, this.manifest, this.root, this.scripts)));
+        this.eventsToSegments(
+            this.splitEvents(
+                this.transformNothings(
+                    this.setDialogDurations(
+                        doCompileScript(startTime, this.manifest, this.root, this.scripts))))));
 };
 
 Script.prototype.simplifySegments = function* (segments) {
@@ -380,11 +376,9 @@ Script.prototype.simplifySegments = function* (segments) {
             for (let i = 1; i < events.length; i++) {
                 let event = events[i];
                 let prevEvent = events[i - 1];
-                if (prevEvent.type === 'play' && event.type === 'play' &&
-                    prevEvent.anim === event.anim &&
-                    (prevEvent.startFrame || 0) === (event.startFrame || 0) &&
-                    prevEvent.playFrames === event.playFrames) {
-                    prevEvent.repeat = (prevEvent.repeat || 1) + 1;
+                if (prevEvent.type === 'play' && event.type === 'play' && prevEvent.anim === event.anim) {
+                    // This is exclusive.
+                    prevEvent.duration += event.duration;
                     events.splice(i, 1);
                     i--;
                 }
@@ -399,91 +393,130 @@ Script.prototype.simplifySegments = function* (segments) {
     }
 };
 
-Script.prototype.collateEvents = function* (eventStream) {
-    let eventsByThread = new Map();
-    let lastDialogEvent = null;
-    let startOffset = null;
+Script.prototype.setDialogDurations = function* (eventStream) {
+    // First event in the queue is always a dialog event.
+    let eventQueue = [];
+    function* emitQueue() {
+        for (let event of eventQueue) {
+            yield event;
+        }
+        eventQueue = [];
+    }
     for (let event of eventStream) {
-        // console.log(event);
-        if (startOffset === null) {
-            startOffset = event.globalOffset;
-        }
-        if (event.globalOffset - startOffset >= SEGMENT_DURATION) {
-            if (lastDialogEvent) {
-                lastDialogEvent.duration = startOffset + SEGMENT_DURATION - lastDialogEvent.globalOffset;
-                lastDialogEvent = Object.assign({}, lastDialogEvent);
-            }
-            yield {
-                startOffset: startOffset,
-                eventsByThread: eventsByThread
-            };
-            eventsByThread = new Map(Array.from(eventsByThread.entries()).map(kv => {
-                let events = [];
-                for (let event of kv[1]) {
-                    if (event.globalOffset + (event.duration * (event.repeat || 1)) >
-                        startOffset + SEGMENT_DURATION) {
-                        let newEvent = Object.assign({}, event);
-                        // Time remaining in the last loop of the animation.
-                        let remainingDuration = event.globalOffset + (event.duration * (event.repeat || 1)) -
-                            (startOffset + SEGMENT_DURATION);
-                        // Just of one loop through the animation.
-                        let playedDuration = event.duration - remainingDuration;
-                        // Including repeats.
-                        let totalPlayedDuration = (event.duration * (event.repeat || 1)) - remainingDuration;
-                        newEvent.startFrame = (newEvent.startFrame || 0) + playedDuration / FRAME_MS;
-                        newEvent.globalOffset += totalPlayedDuration;
-                        newEvent.duration = remainingDuration;
-                        newEvent.segmentOffset = 0;
-                        delete newEvent.repeat;
-                        delete newEvent.playFrames;
-                        events.push(newEvent);
-                    }
-                }
-                return [kv[0], events];
-            }));
-            startOffset += SEGMENT_DURATION;
-            if (lastDialogEvent) {
-                lastDialogEvent.globalOffset = startOffset;
-                lastDialogEvent.segmentOffset = 0;
-                let mainEvents = eventsByThread.get('main');
-                if (!mainEvents) {
-                    eventsByThread.set('main', mainEvents = []);
-                }
-                mainEvents.unshift(lastDialogEvent);
+        if (event.type === 'clear-dialog' || event.type === 'dialog') {
+            if (eventQueue.length) {
+                eventQueue[0].duration = event.globalOffset - eventQueue[0].globalOffset;
+                yield* emitQueue();
             }
         }
-        event.segmentOffset = event.globalOffset - startOffset;
-        let thread = typeof event.thread === 'number' ? event.thread : 'main';
-        let events = eventsByThread.get(thread);
-        if (event.type === 'clear-dialog') {
-            if (lastDialogEvent) {
-                lastDialogEvent.duration = event.globalOffset - lastDialogEvent.globalOffset;
-                lastDialogEvent = null;
-            }
+        if (event.type === 'dialog' || eventQueue.length > 0) {
+            eventQueue.push(event);
             continue;
         }
-        if (event.type === 'dialog') {
-            lastDialogEvent = event;
+        else {
+            yield event;
         }
+    }
+    // Estimate the duration of the final dialog using the duration of the final event.
+    if (eventQueue.length) {
+        let finalEvent = eventQueue[eventQueue.length - 1];
+        eventQueue[0].duration = finalEvent.globalOffset + finalEvent.duration - eventQueue[0].globalOffset;
+        yield* emitQueue();
+    }
+};
+
+// Split events which cross a segment boundary into two.
+Script.prototype.splitEvents = function* (eventStream) {
+    let eventQueue = [];
+    let nextSegmentStart;
+    function* nextSegment() {
+        nextSegmentStart += SEGMENT_MS;
+        let eq = eventQueue.slice();
+        eventQueue = [];
+        for (let event of eq) {
+            yield* processEvent(event);
+        }
+    }
+    function* processEvent(event) {
+        while (event.globalOffset > nextSegmentStart) {
+            yield* nextSegment();
+        }
+        if (event.globalOffset + event.duration > nextSegmentStart) {
+            let newEvent = Object.assign({}, event);
+            let overrun = event.globalOffset + event.duration - nextSegmentStart;
+            let playedDuration = nextSegmentStart - event.globalOffset;
+            event.duration = playedDuration;
+            newEvent.duration = overrun;
+            newEvent.offset += playedDuration;
+            newEvent.globalOffset += playedDuration;
+            eventQueue.push(newEvent);
+        }
+        yield event;
+    }
+    for (let event of eventStream) {
+        if (!nextSegmentStart) {
+            let mediaSeq = Math.floor(event.globalOffset / SEGMENT_MS);
+            nextSegmentStart = (mediaSeq + 1) * SEGMENT_MS;
+        }
+        if (event.globalOffset >= nextSegmentStart) {
+            yield* nextSegment();
+        }
+        yield* processEvent(event);
+    }
+    while (eventQueue.length) {
+        yield* nextSegment();
+    }
+};
+
+Script.prototype.transformNothings = function* (eventStream) {
+    for (let event of eventStream) {
         if (event.type === 'nothing') {
             event.type = 'play';
             event.anim = 'nothing';
         }
+        yield event;
+    }
+};
+
+Script.prototype.eventsToSegments = function* (eventStream) {
+    let eventsByThread = new Map();
+    let startOffset = null;
+    for (let event of eventStream) {
+        if (startOffset === null) {
+            let mediaSeq = Math.floor(event.globalOffset / SEGMENT_MS);
+            startOffset = mediaSeq * SEGMENT_MS;
+        }
+        if (event.globalOffset - startOffset >= SEGMENT_MS) {
+            yield {
+                startOffset: startOffset,
+                eventsByThread: eventsByThread
+            };
+            eventsByThread = new Map();
+            startOffset += SEGMENT_MS;
+        }
+        if (event.type === 'bgswitch') {
+            continue;
+        }
+        event.segmentOffset = event.globalOffset - startOffset;
+        let thread = typeof event.thread === 'number' ? event.thread : 'main';
+        let events = eventsByThread.get(thread);
         if (!events) {
             eventsByThread.set(thread, events = []);
         }
+        // Check for overlapping events and truncate if needed.
         let prevEvent = events[events.length - 1];
         if (prevEvent && (prevEvent.globalOffset + prevEvent.duration > event.globalOffset)) {
-            // Events overlap - truncate the previous event.
-            prevEvent.playFrames = (event.segmentOffset - prevEvent.segmentOffset) / FRAME_MS;
-            if (prevEvent.playFrames === 0) {
+            prevEvent.duration = event.segmentOffset - prevEvent.segmentOffset;
+            if (prevEvent.duration === 0) {
                 events.pop();
             }
         }
-        if (event.type !== 'bgswitch') {
-            events.push(event);
-        }
+        events.push(event);
     }
+    yield {
+        startOffset: startOffset,
+        eventsByThread: eventsByThread
+    };
 };
 
 Script.prototype.getParser = function () {
@@ -556,10 +589,14 @@ Script.prototype.parseIncludedScripts = function (script, parser) {
     }
 };
 
-var script = new Script();
-script.load('script.benji').then(() => {
-    script.startServer();
-    script.startGenerator(new Date('2016-01-01 07:01:00'));
-}).catch(err => {
-    console.log(err.stack);
-});
+if (require.main === module) {
+    var script = new Script();
+    script.load('script.benji').then(() => {
+        script.startServer();
+        script.startGenerator(new Date('2016-01-01 07:01:20'));
+    }).catch(err => {
+        console.log(err.stack);
+    });
+}
+
+module.exports = Script;
