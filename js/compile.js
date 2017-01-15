@@ -108,8 +108,10 @@ Script.prototype.startGenerator = function (startTime) {
 
 Script.prototype.enqueue = function (fn) {
     if (this.running < WORKERS) {
+        this.running++;
         fn(() => {
-            while (this.waiting.length && this.running.length < WORKERS) {
+            this.running--;
+            while (this.waiting.length && this.running < WORKERS) {
                 this.enqueue(this.waiting.shift());
             }
         });
@@ -186,13 +188,14 @@ Script.prototype.ffmpeg = function (segment, done) {
                 args.push('-r', '12.5', '-loop', 1);
                 args.push('-i', this.getAnimFilePattern(event.anim));
 
+                // todo: modulo the length of the animation (with 1-offset correction)
                 let startFrame = (event.startFrame || 1);
                 let endFrame = startFrame + (event.duration / FRAME_MS);
                 let filter = '[' + (inputStream++) + ':0] trim=start_frame=' + startFrame +
-                    ':end_frame=' + endFrame + ' [vstream' + (videoStream++) + ']';
+                    ':end_frame=' + endFrame + ', setpts=PTS-STARTPTS [vstream' + (videoStream++) + ']';
                 addFilter(filter);
 
-                let audio = this.getAudioPath(event.anim);
+/*                let audio = this.getAudioPath(event.anim);
                 if (audio) {
                     if (event.startFrame) {
                         args.push('-ss', event.startFrame * FRAME_MS / 1000);
@@ -209,7 +212,7 @@ Script.prototype.ffmpeg = function (segment, done) {
                     filter += ' [astream' + (audioStream++) + ']';
                     addFilter(filter);
                 }
-            }
+*/            }
             else if (event.type === 'dialog') {
                 dialogFilters += ', ' + this.createDialogFilter(event);
             }
@@ -254,14 +257,13 @@ Script.prototype.ffmpeg = function (segment, done) {
         '-f', 'segment', '-initial_offset', (mediaSequence * SEGMENT_MS / 1000),
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
         '-segment_start_number', mediaSequence,
-        // todo: not great
-        // '-frames:v', SEGMENT_FRAMES,
-        '-t', (SEGMENT_MS / 1000),
+        // todo: this gives exactly 4 seconds: '-frames:v', SEGMENT_FRAMES,
+        '-t', (SEGMENT_MS / 1000), // todo: -t is not accurate at all (prob depends on keyframes)
         SEGMENT_FILENAME);
 
     segment.status = 'preparing';
 
-    // console.log('segment', segment.startOffset, segment.eventsByThread);
+    // console.log('segment', mediaSequence, segment.startOffset, segment.eventsByThread);
     // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
     // setTimeout(done, 0);
     // return;
@@ -270,8 +272,8 @@ Script.prototype.ffmpeg = function (segment, done) {
         if (err) {
             console.error(err);
         }
-        done && done();
         segment.status = 'ready';
+        done && done();
     });
 };
 
@@ -594,7 +596,7 @@ if (require.main === module) {
     var script = new Script();
     script.load('script.benji').then(() => {
         script.startServer();
-        script.startGenerator(new Date('2016-01-01 07:01:20'));
+        script.startGenerator(new Date('2016-01-01 07:00:00'));
     }).catch(err => {
         console.log(err.stack);
     });
