@@ -173,14 +173,16 @@ Compiler.prototype.binom = function(x, spread) {
 Compiler.prototype.compileRoot = function* (script) {
     var ctx = {};
     var events = this.compile(script, ctx);
-    var offset = this.offset;
-    var nextEvent = events.next();
-    while (!nextEvent.done) {
-        let thread = this.selectThread(offset);
+    while (true) {
+        let thread = this.selectThread(this.offset);
         if (thread === null) {
-            yield nextEvent.value;
-            offset = this.offset;
-            nextEvent = events.next();
+            let nextEvent = events.next();
+            if (!nextEvent.done) {
+                yield nextEvent.value;
+            }
+            else {
+                break;
+            }
         }
         else {
             let bg = this.backgrounds[thread];

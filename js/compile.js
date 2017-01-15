@@ -11,7 +11,7 @@ var ACTIVE_SEGMENTS = 5;
 var POLL_INTERVAL = 100;
 var SEGMENT_FILENAME = 'segment_%010d.ts';
 var DELETE_DELAY = 5000;
-var WORKERS = 1;
+var WORKERS = 2; // must do more than one at a time to keep up!
 
 var fs = require('fs');
 var child_process = require('child_process');
@@ -264,7 +264,7 @@ Script.prototype.ffmpeg = function (segment, done) {
     segment.status = 'preparing';
 
     // console.log('segment', mediaSequence, segment.startOffset, segment.eventsByThread);
-    console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
+    // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
     // setTimeout(done, 0);
     // return;
 
@@ -596,7 +596,7 @@ if (require.main === module) {
     var script = new Script();
     script.load('script.benji').then(() => {
         script.startServer();
-        script.startGenerator(new Date('2016-01-01 07:00:00'));
+        script.startGenerator(new Date('2016-01-01 07:01:00'));
     }).catch(err => {
         console.log(err.stack);
     });
