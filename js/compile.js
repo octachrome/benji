@@ -188,8 +188,8 @@ Script.prototype.ffmpeg = function (segment, done) {
                 args.push('-r', '12.5', '-loop', 1);
                 args.push('-i', this.getAnimFilePattern(event.anim));
 
-                // todo: modulo the length of the animation (with 1-offset correction)
-                let startFrame = (event.startFrame || 1);
+                // todo: modulo the length of the animation
+                let startFrame = (event.startFrame || 0);
                 let endFrame = startFrame + (event.duration / FRAME_MS);
                 let filter = '[' + (inputStream++) + ':0] trim=start_frame=' + startFrame +
                     ':end_frame=' + endFrame + ', setpts=PTS-STARTPTS [vstream' + (videoStream++) + ']';
@@ -264,7 +264,7 @@ Script.prototype.ffmpeg = function (segment, done) {
     segment.status = 'preparing';
 
     // console.log('segment', mediaSequence, segment.startOffset, segment.eventsByThread);
-    // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
+    console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
     // setTimeout(done, 0);
     // return;
 
@@ -451,7 +451,7 @@ Script.prototype.splitEvents = function* (eventStream) {
             newEvent.duration = overrun;
             newEvent.offset += playedDuration;
             newEvent.globalOffset += playedDuration;
-            newEvent.startFrame = (event.startFrame || 1) + (playedDuration / FRAME_MS);
+            newEvent.startFrame = (event.startFrame || 0) + (playedDuration / FRAME_MS);
             eventQueue.push(newEvent);
         }
         yield event;
