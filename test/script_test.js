@@ -30,7 +30,7 @@ describe('Script', function () {
                     globalOffset: 4000,
                     offset: 4000,
                     duration: 1,
-                    startFrame: 51
+                    startFrame: 50
                 }
             ]);
         });
@@ -56,14 +56,14 @@ describe('Script', function () {
                     globalOffset: 4000,
                     offset: 4000,
                     duration: 4000,
-                    startFrame: 51
+                    startFrame: 50
                 },
                 {
                     type: 'anim',
                     globalOffset: 8000,
                     offset: 8000,
                     duration: 1,
-                    startFrame: 101
+                    startFrame: 100
                 }
             ]);
         });
