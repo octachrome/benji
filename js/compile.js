@@ -195,7 +195,7 @@ Script.prototype.ffmpeg = function (segment, done) {
                     ':end_frame=' + endFrame + ', setpts=PTS-STARTPTS [vstream' + (videoStream++) + ']';
                 addFilter(filter);
 
-/*                let audio = this.getAudioPath(event.anim);
+                let audio = this.getAudioPath(event.anim);
                 if (audio) {
                     if (event.startFrame) {
                         args.push('-ss', event.startFrame * FRAME_MS / 1000);
@@ -212,7 +212,7 @@ Script.prototype.ffmpeg = function (segment, done) {
                     filter += ' [astream' + (audioStream++) + ']';
                     addFilter(filter);
                 }
-*/            }
+            }
             else if (event.type === 'dialog') {
                 dialogFilters += ', ' + this.createDialogFilter(event);
             }
@@ -253,12 +253,11 @@ Script.prototype.ffmpeg = function (segment, done) {
     if (audioStream > 0) {
         args.push('-map', '[audiomix]');
     }
-    args.push('-vcodec', 'libx264', '-acodec', 'aac',
+    args.push('-vcodec', 'libx264', '-acodec', 'mp3',
         '-f', 'segment', '-initial_offset', (mediaSequence * SEGMENT_MS / 1000),
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
         '-segment_start_number', mediaSequence,
-        // todo: this gives exactly 4 seconds: '-frames:v', SEGMENT_FRAMES,
-        '-t', (SEGMENT_MS / 1000), // todo: -t is not accurate at all (prob depends on keyframes)
+        '-t', (SEGMENT_MS) / 1000, // more accurate than -frames:v
         SEGMENT_FILENAME);
 
     segment.status = 'preparing';
@@ -596,7 +595,7 @@ if (require.main === module) {
     var script = new Script();
     script.load('script.benji').then(() => {
         script.startServer();
-        script.startGenerator(new Date('2016-01-01 07:01:00'));
+        script.startGenerator(new Date('2016-01-01 07:00:00'));
     }).catch(err => {
         console.log(err.stack);
     });
