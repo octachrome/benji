@@ -22,6 +22,8 @@ var serveStatic = require('serve-static');
 var connect = require('connect');
 var sprintf = require('sprintf-js').sprintf;
 var doCompileScript = require('./compiler');
+var charm = require('charm')();
+charm.pipe(process.stdout);
 
 function readFile(path) {
     return new Promise(function (resolve, reject) {
@@ -55,13 +57,20 @@ Script.prototype.startGenerator = function (startTime) {
     }
 
     console.log('Seeking...');
+    let lastLogged;
     while (!next.done && next.value.startOffset + SEGMENT_MS < currentTimestamp()) {
         let segment = next.value;
+        if (!lastLogged || segment.startOffset - lastLogged > 5*60*1000) {
+            charm.erase('line').move(-100, 0).write(new Date(segment.startOffset).toString());
+            lastLogged = segment.startOffset;
+        }
         // console.log('segment', segment.startOffset, segment.eventsByThread);
         next = segmentStream.next();
     }
+    console.log();
 
     this.workingSet = new Map();
+    let wroteLines = 0;
 
     let tick = () => {
         // Clean up expired segments.
@@ -95,6 +104,23 @@ Script.prototype.startGenerator = function (startTime) {
             else {
                 break;
             }
+        }
+
+        charm.up(wroteLines).erase('down');
+        wroteLines = 0;
+        for (let kv of this.workingSet) {
+            charm.write(String(kv[0])).write('\t');
+            if (kv[1].status === 'ready') {
+                charm.foreground('green');
+            }
+            else if (kv[1].status === 'encoding') {
+                charm.foreground('yellow');
+            }
+            else {
+                charm.foreground('blue');
+            }
+            charm.write(kv[1].status || 'waiting').write('\n').foreground('white');
+            wroteLines++;
         }
 
         if (!next.done) {
@@ -260,7 +286,7 @@ Script.prototype.ffmpeg = function (segment, done) {
         '-t', (SEGMENT_MS) / 1000, // more accurate than -frames:v
         SEGMENT_FILENAME);
 
-    segment.status = 'preparing';
+    segment.status = 'encoding';
 
     // console.log('segment', mediaSequence, segment.startOffset, segment.eventsByThread);
     // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
@@ -595,7 +621,7 @@ if (require.main === module) {
     var script = new Script();
     script.load('script.benji').then(() => {
         script.startServer();
-        script.startGenerator(new Date('2016-01-01 07:00:00'));
+        script.startGenerator(new Date('2016-01-01 7:00:00'));
     }).catch(err => {
         console.log(err.stack);
     });
