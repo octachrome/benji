@@ -11,7 +11,8 @@ var ACTIVE_SEGMENTS = 5;
 var POLL_INTERVAL = 100;
 var SEGMENT_FILENAME = 'segment_%010d.ts';
 var DELETE_DELAY = 5000;
-var WORKERS = 2; // must do more than one at a time to keep up!
+var MAX_WORKERS = 2; // Must do more than one at a time to keep up!
+var ENCODE_MS = 4000; // Expected time taken to encode a segment.
 
 var fs = require('fs');
 var child_process = require('child_process');
@@ -70,6 +71,7 @@ Script.prototype.startGenerator = function (startTime) {
     console.log();
 
     this.workingSet = new Map();
+    this.allowedWorkers = MAX_WORKERS;
     let wroteLines = 0;
 
     let tick = () => {
@@ -90,8 +92,8 @@ Script.prototype.startGenerator = function (startTime) {
         // Add new segments.
         while (!next.done) {
             let segment = next.value;
-            if (segment.startOffset + SEGMENT_MS < currentTimestamp()) {
-                // Segment has already ended.
+            if (segment.startOffset < currentTimestamp() + ENCODE_MS) {
+                // Too late for this Segment.
                 next = segmentStream.next();
             }
             else if (segment.startOffset < currentTimestamp() + ACTIVE_SEGMENTS * SEGMENT_MS) {
@@ -133,11 +135,11 @@ Script.prototype.startGenerator = function (startTime) {
 };
 
 Script.prototype.enqueue = function (fn) {
-    if (this.running < WORKERS) {
+    if (this.running < this.allowedWorkers) {
         this.running++;
         fn(() => {
             this.running--;
-            while (this.waiting.length && this.running < WORKERS) {
+            while (this.waiting.length && this.running < this.allowedWorkers) {
                 this.enqueue(this.waiting.shift());
             }
         });
@@ -173,9 +175,16 @@ Script.prototype.writePlaylist = function (req, res, next) {
         }
     }
     if (!ready.length) {
+        this.allowedWorkers = MAX_WORKERS;
         setTimeout(() => this.writePlaylist(req, res, next), 50);
     }
     else {
+        if (ready.length > 1) {
+            this.allowedWorkers = 1;
+        }
+        else {
+            this.allowedWorkers = MAX_WORKERS;
+        }
         var playlistText = '#EXTM3U\n' +
             '#EXT-X-VERSION:3\n' +
             '#EXT-X-MEDIA-SEQUENCE:' + ready[0] + '\n' +
