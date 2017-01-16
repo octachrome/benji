@@ -285,6 +285,11 @@ Compiler.prototype.compile = function* (script, ctx) {
                 yield* this.compile(script.child, ctx);
             }
         }
+        else if (script.cmd === 'repeat_forever') {
+            while (true) {
+                yield* this.compile(script.child, ctx);
+            }
+        }
         else if (script.cmd === 'maybe') {
             if (this.chance.bool({likelihood: script.args[0]})) {
                 yield* this.compile(script.child, ctx);

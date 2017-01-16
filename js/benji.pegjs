@@ -198,7 +198,7 @@ Element = Simple / Struct
 Struct = Option
 
 // Simple elements
-Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / Set / Maybe / If / Else / Background / Sub / Call / Include / Nothing
+Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / RepeatForever / Set / Maybe / If / Else / Background / Sub / Call / Include / Nothing
 
 // An option that forms part of a choice between several elements
 Option = "|" element:Simple { return element.setOption(); }
@@ -208,8 +208,9 @@ Dialog = pos:[<>] _ chars:NCR+ { return mkDialog(flatten(pos), flatten(chars)); 
 
 // Repeat commands
 Repeat = ":repeat" __ rand:"~"? count:[0-9]+ __ "time" "s"? { return mkCmd('repeat', !!rand, parseInt(flatten(count))); }
-RepeatTime = ":repeat" __ "for" __ rand:"~"? dur:[0-9]+ _ unit:TimeUnit { return mkCmd('repeat_for', !!rand, parseInt(flatten(dur)), flatten(unit)); }
+RepeatTime = ":repeat" __ "for" __ rand:"~"? dur:[0-9.]+ _ unit:TimeUnit { return mkCmd('repeat_for', !!rand, parseFloat(flatten(dur)), flatten(unit)); }
 RepeatUntil = ":repeat" __ "until" __ rand:"~"? time:TimeOfDay { return mkCmd('repeat_until', !!rand, flatten(time)); }
+RepeatForever = ":repeat" __ "forever" { return mkCmd('repeat_forever'); }
 
 TimeUnit = (("min" "ute"?) / ("sec" "ond"?) / "hr" / "hour") "s"?
 TimeOfDay = [0-9] [0-9]? ":" [0-9] [0-9]
