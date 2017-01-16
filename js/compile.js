@@ -436,6 +436,9 @@ Script.prototype.setDialogDurations = function* (eventStream) {
                 yield* emitQueue();
             }
         }
+        if (event.type === 'clear-dialog') {
+            continue;
+        }
         if (event.type === 'dialog' || eventQueue.length > 0) {
             eventQueue.push(event);
             continue;
@@ -533,7 +536,8 @@ Script.prototype.eventsToSegments = function* (eventStream) {
         }
         // Check for overlapping events and truncate if needed.
         let prevEvent = events[events.length - 1];
-        if (prevEvent && (prevEvent.globalOffset + prevEvent.duration > event.globalOffset)) {
+        if (prevEvent && prevEvent.type === 'anim' &&
+            (prevEvent.globalOffset + prevEvent.duration > event.globalOffset)) {
             prevEvent.duration = event.segmentOffset - prevEvent.segmentOffset;
             if (prevEvent.duration === 0) {
                 events.pop();
@@ -621,7 +625,7 @@ if (require.main === module) {
     var script = new Script();
     script.load('script.benji').then(() => {
         script.startServer();
-        script.startGenerator(new Date('2016-01-01 7:00:00'));
+        script.startGenerator(new Date('2016-01-01 9:00:40'));
     }).catch(err => {
         console.log(err.stack);
     });
