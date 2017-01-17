@@ -2,7 +2,7 @@
 
 var FRAME_RATE = 12.5;
 var FRAME_MS = 1000 / FRAME_RATE;
-var SEGMENT_FRAMES = 50;
+var SEGMENT_FRAMES = 100;
 var SEGMENT_MS = SEGMENT_FRAMES * FRAME_MS;
 var DIALOG_PER_LINE = 60;
 var DIALOG_COLORS = ['#333399', '#993333'];
@@ -12,7 +12,7 @@ var POLL_INTERVAL = 100;
 var SEGMENT_FILENAME = 'segment_%010d.ts';
 var DELETE_DELAY = 5000;
 var MAX_WORKERS = 2; // Must do more than one at a time to keep up!
-var ENCODE_MS = 4000; // Expected time taken to encode a segment.
+var ENCODE_MS = SEGMENT_MS; // Expected time taken to encode a segment.
 
 var fs = require('fs');
 var child_process = require('child_process');
