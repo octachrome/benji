@@ -227,7 +227,7 @@ Script.prototype.ffmpeg = function (segment, done) {
                 let startFrame = (event.startFrame || 0);
                 let endFrame = startFrame + (event.duration / FRAME_MS);
                 let filter = '[' + (inputStream++) + ':0] setpts=N/(FRAME_RATE*TB), trim=start_frame=' + startFrame +
-                    ':end_frame=' + endFrame + ' [vstream' + (videoStream++) + ']';
+                    ':end_frame=' + endFrame + ', setpts=N/(FRAME_RATE*TB) [vstream' + (videoStream++) + ']';
                 addFilter(filter);
 
                 let audio = this.getAudioPath(event.anim);
