@@ -2,7 +2,7 @@
 
 var FRAME_RATE = 12.5;
 var FRAME_MS = 1000 / FRAME_RATE;
-var SEGMENT_FRAMES = 100;
+var SEGMENT_FRAMES = 50;
 var SEGMENT_MS = SEGMENT_FRAMES * FRAME_MS;
 var DIALOG_PER_LINE = 60;
 var DIALOG_COLORS = ['#333399', '#993333'];
@@ -220,14 +220,14 @@ Script.prototype.ffmpeg = function (segment, done) {
         let dialogFilters = '';
         for (let event of events) {
             if (event.type === 'play') {
-                args.push('-r', '12.5', '-loop', 1);
+                args.push('-r', '12.5', '-stream_loop', -1);
                 args.push('-i', this.getAnimFilePattern(event.anim));
 
                 // todo: modulo the length of the animation
                 let startFrame = (event.startFrame || 0);
                 let endFrame = startFrame + (event.duration / FRAME_MS);
-                let filter = '[' + (inputStream++) + ':0] trim=start_frame=' + startFrame +
-                    ':end_frame=' + endFrame + ', setpts=PTS-STARTPTS [vstream' + (videoStream++) + ']';
+                let filter = '[' + (inputStream++) + ':0] setpts=N/(FRAME_RATE*TB), trim=start_frame=' + startFrame +
+                    ':end_frame=' + endFrame + ' [vstream' + (videoStream++) + ']';
                 addFilter(filter);
 
                 let audio = this.getAudioPath(event.anim);
