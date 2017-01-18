@@ -220,13 +220,13 @@ Script.prototype.ffmpeg = function (segment, done) {
         let dialogFilters = '';
         for (let event of events) {
             if (event.type === 'play') {
-                args.push('-r', '12.5', '-stream_loop', -1);
+                args.push('-r', '12.5');
                 args.push('-i', this.getAnimFilePattern(event.anim));
 
                 // todo: modulo the length of the animation
                 let startFrame = (event.startFrame || 0);
                 let endFrame = startFrame + (event.duration / FRAME_MS);
-                let filter = '[' + (inputStream++) + ':0] setpts=N/(FRAME_RATE*TB), trim=start_frame=' + startFrame +
+                let filter = '[' + (inputStream++) + ':0] loop=50:50, trim=start_frame=' + startFrame +
                     ':end_frame=' + endFrame + ', setpts=N/(FRAME_RATE*TB) [vstream' + (videoStream++) + ']';
                 addFilter(filter);
 
