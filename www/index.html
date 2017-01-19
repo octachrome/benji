@@ -1,112 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <link rel="stylesheet" href="style.css"></head>
-  <script src="lib/pixi.js"></script>
-  <script src="lib/jquery.js"></script>
-  <script src="lib/knockout.js"></script>
-  <script src="lib/lodash.js"></script>
-  <script src="lib/long.js"></script>
-  <script src="lib/chance.js"></script>
-  <script src="lib/peg-0.9.0.min.js"></script>
-  <script src="lib/ms.js"></script>
-  <script src="js/compiler.js"></script>
-  <script src="js/compiler2.js"></script>
-  <script src="js/player.js"></script>
-  <script src="js/player2.js"></script>
-  <script src="js/script.js"></script>
-  <script src="js/controls.js"></script>
-  <style>
-  body {
-    font-family: Courier, "Courier New", monospace;
-  }
-  div.controls {
-    height: 20px;
-  }
-  div.menuHolder {
-    padding: 10px;
-    position: absolute;
-    top: 0;
-    left: 0;
-  }
-  i:hover {
-    color: green;
-    cursor: pointer;
-  }
-  div.buttons, div.time {
-    text-align: center;
-  }
-  div#target {
-    position: relative;
-    width: 1280px;
-    height: 720px;
-    margin: 0px auto 0px auto;
-  }
-  div#timestamp {
-    text-align: center;
-  }
-  div.footer {
-    position: relative;
-  }
-  div#dialog-left, div#dialog-right {
-    font-size: 20pt;
-    font-weight: bold;
-    text-align: center;
-    position: absolute;
-    left: 0;
-    right: 0;
-  }
-  div#dialog-left {
-  	color: #339;
-  }
-  div#dialog-right {
-  	color: #933;
-  }
-  div.sidebar {
-    position: absolute;
-    z-index: 2;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: 400px;
-    background: rgba(200, 200, 200, .5);
-    padding: 40px 10px 10px 10px;
-  }
-  div.events-list {
-    position: absolute;
-    top: 40px;
-    bottom: 0;
-    overflow-y: auto;
-  }
-  </style>
+<script src="https://cdn.jsdelivr.net/hls.js/latest/hls.min.js"></script>
 </head>
 <body>
-  <div class="menuHolder" data-bind="visible: !sidebarVisible()">
-    <i class="icon-menu" data-bind="click: showSidebar"></i>
-  </div>
-  <div class="sidebar" data-bind="visible: sidebarVisible">
-    <div class="menuHolder" data-bind="visible: sidebarVisible">
-      <i class="icon-menu" data-bind="click: hideSidebar"></i>
-      <input data-bind="value: date"/>
-    </div>
-    <div class="events-list">
-      <div data-bind="visible: events().length === 0">Loading...</div>
-      <!-- ko foreach: events -->
-      <div>
-        <a href="#" data-bind="click: $parent.gotoEvent">
-          <span data-bind="text: time"></span>
-          <span data-bind="text: name"></span>
-        </a>
-      </div>
-      <!-- /ko -->
-    </div>
-  </div>
-  <div id="timestamp">&nbsp;</div>
-  <div id="target">
-    <div class="footer">
-      <div id="dialog-left"></div>
-      <div id="dialog-right"></div>
-    </div>
-  </div>
+<video id="video"></video>
+<script>
+  if(Hls.isSupported()) {
+    var video = document.getElementById('video');
+    var hls = new Hls({
+      debug: true
+    });
+    hls.loadSource('segments.m3u8');
+    hls.attachMedia(video);
+    hls.on(Hls.Events.MANIFEST_PARSED,function() {
+      video.play();
+    });
+ }
+</script>
 </body>
 </html>

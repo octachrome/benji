@@ -10,13 +10,16 @@ var DAY_MS = 24*60*60*1000;
 var ACTIVE_SEGMENTS = 5;
 var POLL_INTERVAL = 100;
 var SEGMENT_FILENAME = 'segment_%010d.ts';
+var SEGMENT_DIR = 'video';
 var DELETE_DELAY = 5000;
 var MAX_WORKERS = 2; // Must do more than one at a time to keep up!
 var ENCODE_MS = SEGMENT_MS; // Expected time taken to encode a segment.
+var PORT = 8080;
 
-var fs = require('fs');
+var fs = require('fs-extra');
 var child_process = require('child_process');
 var Path = require('path');
+var pr = require('promise-ring');
 var PEG = require('pegjs');
 var wordwrap = require('wordwrap')(DIALOG_PER_LINE);
 var serveStatic = require('serve-static');
@@ -27,16 +30,7 @@ var charm = require('charm')();
 charm.pipe(process.stdout);
 
 function readFile(path) {
-    return new Promise(function (resolve, reject) {
-        fs.readFile(path, 'utf8', function (err, data) {
-            if (err) {
-                reject(err);
-            }
-            else {
-                resolve(data);
-            }
-        });
-    });
+    return pr.call(fs.readFile, path, 'utf8');
 }
 
 function readScript(path) {
@@ -68,7 +62,7 @@ Server.prototype.startGenerator = function (startTime) {
         // console.log('segment', segment.startOffset, segment.eventsByThread);
         next = segmentStream.next();
     }
-    console.log();
+    console.log('\nGo to http://localhost:' + PORT + ' in your browser');
 
     this.workingSet = new Map();
     this.allowedWorkers = MAX_WORKERS;
@@ -84,7 +78,7 @@ Server.prototype.startGenerator = function (startTime) {
                 this.workingSet.delete(seq);
                 setTimeout(() => {
                     // todo: abort running ffmpeg, and ensure file is eventually deleted
-                    fs.unlink(sprintf(SEGMENT_FILENAME, seq), () => 0);
+                    fs.unlink(Path.join(__dirname, SEGMENT_DIR, sprintf(SEGMENT_FILENAME, seq)), () => 0);
                 }, DELETE_DELAY);
             }
         }
@@ -154,10 +148,12 @@ Server.prototype.startServer = function () {
     app.use('/segments.m3u8', (req, res, next) => {
         this.writePlaylist(req, res, next);
     });
-    app.use('/', serveStatic(Path.join(__dirname, '..')));
-    let server = app.listen(8080);
+    app.use('/', serveStatic(Path.join(__dirname, 'www')));
+    app.use('/', serveStatic(Path.join(__dirname, SEGMENT_DIR)));
+    let server = app.listen(PORT);
     server.on('error', function (err) {
         console.error(err);
+        process.exit(1);
     });
 };
 
@@ -298,7 +294,7 @@ Server.prototype.ffmpeg = function (segment, done) {
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
         '-segment_start_number', mediaSequence,
         '-t', (SEGMENT_MS) / 1000, // more accurate than -frames:v
-        SEGMENT_FILENAME);
+        Path.join(__dirname, SEGMENT_DIR, SEGMENT_FILENAME));
 
     segment.status = 'encoding';
 
@@ -631,11 +627,14 @@ if (require.main === module) {
     var dateString = process.argv.slice(2).join(' ').trim();
     var timestamp = dateString ? new Date(dateString) : new Date();
     var server = new Server();
-    server.load('script.benji').then(() => {
+    pr.call(fs.emptyDir, Path.join(__dirname, SEGMENT_DIR)).then(() => {
+        return server.load('script.benji');
+    }).then(() => {
         server.startServer();
         server.startGenerator(timestamp);
     }).catch(err => {
         console.log(err.stack);
+        process.exit(1);
     });
 }
 
