@@ -169,6 +169,10 @@ function writeManifest(anims, audio, out) {
 }
 
 function pack(srcdir, out, pack) {
+    if (!srcdir) {
+        let home = process.env.HOME || path.join(process.env.HOMEDRIVE, process.env.HOMEPATH);
+        srcdir = path.join(home, 'Dropbox', 'Benji Tests');
+    }
     return pfs.ensureDir(out).then(function () {
         console.log('Looking for animations...');
         return Promise.all([findAnimations(srcdir), findAudio(srcdir)]);
@@ -192,10 +196,6 @@ if (require.main === module) {
         .argv;
 
     let srcdir = argv._.shift();
-    if (!srcdir) {
-        let home = process.env.HOME || path.join(process.env.HOMEDRIVE, process.env.HOMEPATH);
-        srcdir = path.join(home, 'Dropbox', 'Benji Tests');
-    }
     return pack(srcdir, argv.out, argv.pack).catch(function (err) {
         console.log(err);
         process.exit(1);

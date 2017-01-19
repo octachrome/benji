@@ -26,6 +26,7 @@ var serveStatic = require('serve-static');
 var connect = require('connect');
 var sprintf = require('sprintf-js').sprintf;
 var doCompileScript = require('./js/compiler');
+var pack = require('./js/pack');
 var charm = require('charm')();
 charm.pipe(process.stdout);
 
@@ -569,7 +570,7 @@ Server.prototype.load = function (scriptPath) {
     this.playing = false;
     var self = this;
 
-    return readFile('anims.json').then(function (manifestSrc) {
+    return pack(null, __dirname).then(() => readFile('anims.json')).then(function (manifestSrc) {
         self.manifest = JSON.parse(manifestSrc);
         self.scripts = {};
 
