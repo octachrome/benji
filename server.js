@@ -22,7 +22,7 @@ var wordwrap = require('wordwrap')(DIALOG_PER_LINE);
 var serveStatic = require('serve-static');
 var connect = require('connect');
 var sprintf = require('sprintf-js').sprintf;
-var doCompileScript = require('./compiler');
+var doCompileScript = require('./js/compiler');
 var charm = require('charm')();
 charm.pipe(process.stdout);
 
@@ -43,12 +43,12 @@ function readScript(path) {
     return readFile(Path.join('../benji-data/scripts', path));
 }
 
-function Script() {
+function Server() {
     this.running = 0;
     this.waiting = [];
 }
 
-Script.prototype.startGenerator = function (startTime) {
+Server.prototype.startGenerator = function (startTime) {
     var timeOffset = new Date().getTime() - startTime;
     var segmentStream = this.getSegments(startTime);
     var next = segmentStream.next();
@@ -134,7 +134,7 @@ Script.prototype.startGenerator = function (startTime) {
     setTimeout(tick, POLL_INTERVAL);
 };
 
-Script.prototype.enqueue = function (fn) {
+Server.prototype.enqueue = function (fn) {
     if (this.running < this.allowedWorkers) {
         this.running++;
         fn(() => {
@@ -149,7 +149,7 @@ Script.prototype.enqueue = function (fn) {
     }
 };
 
-Script.prototype.startServer = function () {
+Server.prototype.startServer = function () {
     let app = connect();
     app.use('/segments.m3u8', (req, res, next) => {
         this.writePlaylist(req, res, next);
@@ -161,7 +161,7 @@ Script.prototype.startServer = function () {
     });
 };
 
-Script.prototype.writePlaylist = function (req, res, next) {
+Server.prototype.writePlaylist = function (req, res, next) {
     var sequenceNumbers = this.workingSet ? Array.from(this.workingSet.keys()).sort() : [];
     let ready = [];
     for (let i = 0; i < sequenceNumbers.length; i++) {
@@ -200,7 +200,7 @@ Script.prototype.writePlaylist = function (req, res, next) {
     }
 };
 
-Script.prototype.ffmpeg = function (segment, done) {
+Server.prototype.ffmpeg = function (segment, done) {
     let mediaSequence = segment.startOffset / SEGMENT_MS;
     let args = ['-y'];
     let filters = '';
@@ -316,7 +316,7 @@ Script.prototype.ffmpeg = function (segment, done) {
     });
 };
 
-Script.prototype.createDialogFilter = function (event) {
+Server.prototype.createDialogFilter = function (event) {
     var lines = wordwrap(event.dialog.replace(/\\/, '\\\\').replace(/'/g, "\u2019"))
         .split(/[\r\n]+/);
     var filter = '';
@@ -335,7 +335,7 @@ Script.prototype.createDialogFilter = function (event) {
     return filter;
 };
 
-Script.prototype.getAnimation = function (animName) {
+Server.prototype.getAnimation = function (animName) {
     if (animName === 'nothing') {
         return {
             pattern: 'Blank.png',
@@ -349,7 +349,7 @@ Script.prototype.getAnimation = function (animName) {
     return anim;
 };
 
-Script.prototype.sortThreads = function (segment) {
+Server.prototype.sortThreads = function (segment) {
     return Array.from(segment.eventsByThread.keys()).sort(function (a, b) {
         if (a === 'main') {
             return 1;
@@ -363,7 +363,7 @@ Script.prototype.sortThreads = function (segment) {
     });
 };
 
-Script.prototype.getSegments = function* (startTime) {
+Server.prototype.getSegments = function* (startTime) {
     let compileTime = startTime;
     let gen = this.getSegmentsForDate(compileTime);
     let next = gen.next();
@@ -392,7 +392,7 @@ Script.prototype.getSegments = function* (startTime) {
     }
 };
 
-Script.prototype.getSegmentsForDate = function* (startTime) {
+Server.prototype.getSegmentsForDate = function* (startTime) {
     yield* this.simplifySegments(
         this.eventsToSegments(
             this.splitEvents(
@@ -401,7 +401,7 @@ Script.prototype.getSegmentsForDate = function* (startTime) {
                         doCompileScript(startTime, this.manifest, this.root, this.scripts))))));
 };
 
-Script.prototype.simplifySegments = function* (segments) {
+Server.prototype.simplifySegments = function* (segments) {
     for (let segment of segments) {
         for (let kv of segment.eventsByThread) {
             let thread = kv[0], events = kv[1];
@@ -426,7 +426,7 @@ Script.prototype.simplifySegments = function* (segments) {
     }
 };
 
-Script.prototype.setDialogDurations = function* (eventStream) {
+Server.prototype.setDialogDurations = function* (eventStream) {
     // First event in the queue is always a dialog event.
     let eventQueue = [];
     function* emitQueue() {
@@ -462,7 +462,7 @@ Script.prototype.setDialogDurations = function* (eventStream) {
 };
 
 // Split events which cross a segment boundary into two.
-Script.prototype.splitEvents = function* (eventStream) {
+Server.prototype.splitEvents = function* (eventStream) {
     let eventQueue = [];
     let nextSegmentStart;
     function* nextSegment() {
@@ -505,7 +505,7 @@ Script.prototype.splitEvents = function* (eventStream) {
     }
 };
 
-Script.prototype.transformNothings = function* (eventStream) {
+Server.prototype.transformNothings = function* (eventStream) {
     for (let event of eventStream) {
         if (event.type === 'nothing') {
             event.type = 'play';
@@ -515,7 +515,7 @@ Script.prototype.transformNothings = function* (eventStream) {
     }
 };
 
-Script.prototype.eventsToSegments = function* (eventStream) {
+Server.prototype.eventsToSegments = function* (eventStream) {
     let eventsByThread = new Map();
     let startOffset = null;
     for (let event of eventStream) {
@@ -557,7 +557,7 @@ Script.prototype.eventsToSegments = function* (eventStream) {
     };
 };
 
-Script.prototype.getParser = function () {
+Server.prototype.getParser = function () {
     if (this.parser) {
         return Promise.resolve(parser);
     }
@@ -569,7 +569,7 @@ Script.prototype.getParser = function () {
     }
 };
 
-Script.prototype.load = function (scriptPath) {
+Server.prototype.load = function (scriptPath) {
     this.playing = false;
     var self = this;
 
@@ -590,7 +590,7 @@ Script.prototype.load = function (scriptPath) {
     });
 };
 
-Script.prototype.parseIncludedScripts = function (script, parser) {
+Server.prototype.parseIncludedScripts = function (script, parser) {
     var self = this;
     if (script.type === 'Cmd' && script.cmd === 'include') {
         var filename = script.args[0];
@@ -628,13 +628,15 @@ Script.prototype.parseIncludedScripts = function (script, parser) {
 };
 
 if (require.main === module) {
-    var script = new Script();
-    script.load('script.benji').then(() => {
-        script.startServer();
-        script.startGenerator(new Date('2016-01-01 9:01:00'));
+    var dateString = process.argv.slice(2).join(' ').trim();
+    var timestamp = dateString ? new Date(dateString) : new Date();
+    var server = new Server();
+    server.load('script.benji').then(() => {
+        server.startServer();
+        server.startGenerator(timestamp);
     }).catch(err => {
         console.log(err.stack);
     });
 }
 
-module.exports = Script;
+module.exports = Server;

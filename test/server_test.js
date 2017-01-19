@@ -1,16 +1,16 @@
 var expect = require('chai').expect;
-var Script = require('../js/compile');
+var Server = require('../server');
 
-describe('Script', function () {
-    let script;
+describe('Server', function () {
+    let server;
 
     beforeEach(function () {
-        script = new Script();
+        server = new Server();
     });
 
     describe('#splitEvents', function () {
         it('should split an event that overlaps a segment boundary', function () {
-            let events = Array.from(script.splitEvents([
+            let events = Array.from(server.splitEvents([
                 {
                     type: 'anim',
                     offset: 0,
@@ -36,7 +36,7 @@ describe('Script', function () {
         });
 
         it('should split an event that overlaps two segment boundaries', function () {
-            let events = Array.from(script.splitEvents([
+            let events = Array.from(server.splitEvents([
                 {
                     type: 'anim',
                     offset: 0,
@@ -71,7 +71,7 @@ describe('Script', function () {
 
     describe('#eventsToSegments', function () {
         it('should truncate overlapping events', function () {
-            let segments = Array.from(script.eventsToSegments([
+            let segments = Array.from(server.eventsToSegments([
                 {
                     type: 'anim',
                     offset: 0,
@@ -104,7 +104,7 @@ describe('Script', function () {
         });
 
         it('should discard zero-length anim events', function () {
-            let segments = Array.from(script.eventsToSegments([
+            let segments = Array.from(server.eventsToSegments([
                 {
                     type: 'anim',
                     anim: 'anim1',
@@ -133,7 +133,7 @@ describe('Script', function () {
         });
 
         it('should preserve zero-length dialog events', function () {
-            let segments = Array.from(script.eventsToSegments([
+            let segments = Array.from(server.eventsToSegments([
                 {
                     type: 'dialog',
                     offset: 0,
@@ -168,7 +168,7 @@ describe('Script', function () {
 
     describe('#setDialogDurations', function () {
         it('should set the duration of a dialog event', function () {
-            let events = Array.from(script.setDialogDurations([
+            let events = Array.from(server.setDialogDurations([
                 {
                     type: 'dialog',
                     pos: 1,
