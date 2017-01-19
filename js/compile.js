@@ -220,22 +220,27 @@ Script.prototype.ffmpeg = function (segment, done) {
         let dialogFilters = '';
         for (let event of events) {
             if (event.type === 'play') {
+                let anim = this.getAnimation(event.anim);
                 args.push('-r', '12.5');
-                args.push('-i', this.getAnimFilePattern(event.anim));
+                args.push('-i', anim.pattern);
 
-                // todo: modulo the length of the animation
-                let startFrame = (event.startFrame || 0);
-                let endFrame = startFrame + (event.duration / FRAME_MS);
-                let filter = '[' + (inputStream++) + ':0] loop=50:50, trim=start_frame=' + startFrame +
+                let startFrame = (event.startFrame || 0) % anim.totalFrames;
+                let playFrames = event.duration / FRAME_MS;
+                let endFrame = startFrame + playFrames;
+                let loops = Math.ceil(endFrame / anim.totalFrames);
+                let filter = '[' + (inputStream++) + ':0] ';
+                if (loops > 1) {
+                    filter += 'loop=' + loops + ':' + anim.totalFrames + ', ';
+                }
+                filter += 'trim=start_frame=' + startFrame +
                     ':end_frame=' + endFrame + ', setpts=N/(FRAME_RATE*TB) [vstream' + (videoStream++) + ']';
                 addFilter(filter);
 
-                let audio = this.getAudioPath(event.anim);
-                if (audio) {
+                if (anim.audio) {
                     if (event.startFrame) {
                         args.push('-ss', event.startFrame * FRAME_MS / 1000);
                     }
-                    args.push('-i', audio);
+                    args.push('-i', anim.audio);
                     let filter = '[' + (inputStream++) + ':0] ';
                     let localOffset = event.globalOffset - segment.startOffset;
                     if (localOffset > 0) {
@@ -330,26 +335,18 @@ Script.prototype.createDialogFilter = function (event) {
     return filter;
 };
 
-Script.prototype.getAnimFilePattern = function (animName) {
+Script.prototype.getAnimation = function (animName) {
     if (animName === 'nothing') {
-        return 'Blank.png';
+        return {
+            pattern: 'Blank.png',
+            totalFrames: 1
+        };
     }
     var anim = this.manifest[animName];
     if (!anim) {
         throw new Error('Unknown anim ' + animName);
     }
-    return anim.pattern;
-};
-
-Script.prototype.getAudioPath = function (animName) {
-    if (animName === 'nothing') {
-        return null;
-    }
-    var anim = this.manifest[animName];
-    if (!anim) {
-        throw new Error('Unknown anim ' + animName);
-    }
-    return anim.audio;
+    return anim;
 };
 
 Script.prototype.sortThreads = function (segment) {
@@ -634,7 +631,7 @@ if (require.main === module) {
     var script = new Script();
     script.load('script.benji').then(() => {
         script.startServer();
-        script.startGenerator(new Date('2016-01-01 9:00:40'));
+        script.startGenerator(new Date('2016-01-01 9:01:00'));
     }).catch(err => {
         console.log(err.stack);
     });
