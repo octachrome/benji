@@ -283,7 +283,7 @@ Server.prototype.ffmpeg = function (segment, done) {
         for (let i = 0; i < audioStream; i++) {
             filter += '[astream' + i + '] ';
         }
-        filter += 'amix=inputs=' + audioStream + ' [audiomix]';
+        filter += 'amix=inputs=' + audioStream + ', volume=10 [audiomix]';
         addFilter(filter);
     }
     args.push('-filter_complex', filters, '-map', videoMap);
