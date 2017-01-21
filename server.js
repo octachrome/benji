@@ -12,7 +12,7 @@ var POLL_INTERVAL = 100;
 var SEGMENT_FILENAME = 'segment_%010d.ts';
 var SEGMENT_DIR = 'video';
 var DELETE_DELAY = 5000;
-var MAX_WORKERS = 2; // Must do more than one at a time to keep up!
+var MAX_WORKERS = 1;
 var ENCODE_MS = SEGMENT_MS; // Expected time taken to encode a segment.
 var PORT = 8080;
 
@@ -189,7 +189,7 @@ Server.prototype.writePlaylist = function (req, res, next) {
             '#EXT-X-TARGETDURATION:' + (SEGMENT_MS / 1000) + '\n' +
             ready.map((seq) =>
                 '#EXTINF:' + (SEGMENT_MS / 1000) + ',\n' +
-                sprintf(SEGMENT_FILENAME, seq) + '\n');
+                sprintf(SEGMENT_FILENAME, seq)).join('\n');
         res.writeHead(200, {
             'Content-Type': 'application/vnd.apple.mpegurl'
         });
