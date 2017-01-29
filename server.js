@@ -13,7 +13,7 @@ var POLL_INTERVAL = 100;
 var SEGMENT_FILENAME = 'segment_%010d.ts';
 var SEGMENT_DIR = 'video';
 var DELETE_DELAY = 5000;
-var MAX_WORKERS = 1;
+var MAX_WORKERS = 2;
 var ENCODE_MS = SEGMENT_MS; // Expected time taken to encode a segment.
 var PORT = 8080;
 var DEBUG = false;
@@ -367,8 +367,11 @@ Server.prototype.createDialogFilter = function (event) {
         filter += "drawtext=enable='between(n," +
             (event.segmentOffset / FRAME_MS) + "," +
             ((event.segmentOffset + event.duration) / FRAME_MS - 1) + "')" +
-            ":x=(main_w-text_w)/2:y=(760+" + (lineOffset + i) + "*text_h)" +
-            ":fontsize=30:fontcolor=" + (DIALOG_COLORS[event.pos] || 'black') +
+            ":x=(main_w-text_w)/2:y=(760+" + (lineOffset + i) + "*text_h)";
+        if (process.platform === 'win32') {
+            filter += ':fontfile=/Windows/Fonts/arial.ttf';
+        }
+        filter += ":fontsize=30:fontcolor=" + (DIALOG_COLORS[event.pos] || 'black') +
             ":expansion=none:text='" + lines[i] + "'";
     }
     return filter;
