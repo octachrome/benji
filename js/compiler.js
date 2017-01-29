@@ -329,7 +329,7 @@ Compiler.prototype.compile = function* (script, ctx) {
         }
         else if (script.cmd === 'background') {
             var thread = script.args[0];
-            // Create a dummy event to let the backgrounds catch up.
+            // Create a zero-length dummy event to let the backgrounds catch up.
             yield this.addEvent({
                 type: 'bgswitch',
                 thread: thread

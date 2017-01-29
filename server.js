@@ -4,6 +4,7 @@ var FRAME_RATE = 12.5;
 var FRAME_MS = 1000 / FRAME_RATE;
 var SEGMENT_FRAMES = 50;
 var SEGMENT_MS = SEGMENT_FRAMES * FRAME_MS;
+var AUDIO_SAMPLE_RATE = 44100;
 var DIALOG_PER_LINE = 60;
 var DIALOG_COLORS = ['#333399', '#993333'];
 var DAY_MS = 24*60*60*1000;
@@ -15,6 +16,9 @@ var DELETE_DELAY = 5000;
 var MAX_WORKERS = 1;
 var ENCODE_MS = SEGMENT_MS; // Expected time taken to encode a segment.
 var PORT = 8080;
+var DEBUG = false;
+var VIDEO = true;
+var AUDIO = true;
 
 var fs = require('fs-extra');
 var child_process = require('child_process');
@@ -103,21 +107,23 @@ Server.prototype.startGenerator = function (startTime) {
             }
         }
 
-        charm.up(wroteLines).erase('down');
-        wroteLines = 0;
-        for (let kv of this.workingSet) {
-            charm.write(String(kv[0])).write('\t');
-            if (kv[1].status === 'ready') {
-                charm.foreground('green');
+        if (!DEBUG) {
+            charm.up(wroteLines).erase('down');
+            wroteLines = 0;
+            for (let kv of this.workingSet) {
+                charm.write(String(kv[0])).write('\t');
+                if (kv[1].status === 'ready') {
+                    charm.foreground('green');
+                }
+                else if (kv[1].status === 'encoding') {
+                    charm.foreground('yellow');
+                }
+                else {
+                    charm.foreground('blue');
+                }
+                charm.write(kv[1].status || 'waiting').write('\n').foreground('white');
+                wroteLines++;
             }
-            else if (kv[1].status === 'encoding') {
-                charm.foreground('yellow');
-            }
-            else {
-                charm.foreground('blue');
-            }
-            charm.write(kv[1].status || 'waiting').write('\n').foreground('white');
-            wroteLines++;
         }
 
         if (!next.done) {
@@ -207,46 +213,49 @@ Server.prototype.ffmpeg = function (segment, done) {
         }
         filters += filter;
     }
-    let videoStream = 0;
-    let audioStream = 0;
+    let outputStream = 0;
     let inputStream = 0;
     let threads = [];
     for (let thread of this.sortThreads(segment)) {
-        let firstVideoStream = videoStream;
+        let firstOutputStream = outputStream;
         let events = segment.eventsByThread.get(thread);
         let dialogFilters = '';
         for (let event of events) {
             if (event.type === 'play') {
                 let anim = this.getAnimation(event.anim);
-                args.push('-r', '12.5');
-                args.push('-i', anim.pattern);
-
+                let thisStream = outputStream++;
                 let startFrame = (event.startFrame || 0) % anim.totalFrames;
                 let playFrames = event.duration / FRAME_MS;
                 let endFrame = startFrame + playFrames;
                 let loops = Math.ceil(endFrame / anim.totalFrames);
-                let filter = '[' + (inputStream++) + ':0] ';
-                if (loops > 1) {
-                    filter += 'loop=' + loops + ':' + anim.totalFrames + ', ';
-                }
-                filter += 'trim=start_frame=' + startFrame +
-                    ':end_frame=' + endFrame + ', setpts=N/(FRAME_RATE*TB) [vstream' + (videoStream++) + ']';
-                addFilter(filter);
 
-                if (anim.audio) {
-                    if (event.startFrame) {
-                        args.push('-ss', event.startFrame * FRAME_MS / 1000);
-                    }
-                    args.push('-i', anim.audio);
+                if (VIDEO) {
+                    args.push('-r', '12.5');
+                    args.push('-i', anim.pattern);
+
                     let filter = '[' + (inputStream++) + ':0] ';
-                    let localOffset = event.globalOffset - segment.startOffset;
-                    if (localOffset > 0) {
-                        filter += 'adelay=' + localOffset + '|' + localOffset;
+                    if (loops > 1) {
+                        filter += 'loop=' + (loops - 1) + ':' + anim.totalFrames + ', ';
+                    }
+                    filter += 'trim=start_frame=' + startFrame +
+                        ':end_frame=' + endFrame + ', setpts=N/(FRAME_RATE*TB) [vstream' + thisStream + ']';
+                    addFilter(filter);
+                }
+
+                if (AUDIO) {
+                    let filter = '';
+                    if (anim.audio) {
+                        args.push('-i', anim.audio);
+                        filter = '[' + (inputStream++) + ':0] ';
+                        if (loops > 1) {
+                            filter += 'aloop=' + (loops - 1) + ':' + (anim.totalFrames * FRAME_MS / 1000 * AUDIO_SAMPLE_RATE) + ', ';
+                        }
                     }
                     else {
-                        filter += 'anull';
+                        filter = 'anullsrc, ';
                     }
-                    filter += ' [astream' + (audioStream++) + ']';
+                    filter += 'atrim=start=' + (startFrame * FRAME_MS / 1000) +
+                        ':end=' + (endFrame * FRAME_MS / 1000) + ', asetpts=N/SR/TB [astream' + thisStream + ']';
                     addFilter(filter);
                 }
             }
@@ -254,43 +263,74 @@ Server.prototype.ffmpeg = function (segment, done) {
                 dialogFilters += ', ' + this.createDialogFilter(event);
             }
         }
-        if (videoStream > firstVideoStream) {
+        if (outputStream > firstOutputStream) {
             let filter = '';
-            for (let i = firstVideoStream; i < videoStream; i++) {
-                filter += '[vstream' + i + '] ';
+            for (let i = firstOutputStream; i < outputStream; i++) {
+                if (VIDEO) {
+                    filter += '[vstream' + i + '] ';
+                }
+                if (AUDIO) {
+                    filter += '[astream' + i + '] ';
+                }
             }
-            // pad=height=800:color=white, \
-            filter += 'concat=n=' + (videoStream - firstVideoStream) +
-                ', pad=height=800:color=white' + dialogFilters + ' [thread' + thread + ']';
+            filter += 'concat=v=' + (VIDEO ? 1 : 0) + ':a=' + (AUDIO ? 1 : 0) +':n=' + (outputStream - firstOutputStream) + ' ';
+            if (VIDEO) {
+                filter += '[vthread' + thread + '] ';
+                addFilter('[vthread' + thread + '] pad=height=800:color=white' + dialogFilters + ' [thread' + thread + ']');
+            }
+            if (AUDIO) {
+                filter += '[athread' + thread + '] ';
+            }
             addFilter(filter);
             threads.push(thread);
         }
     }
-    let videoMap;
-    if (threads.length === 1) {
-        videoMap = '[thread' + threads[0] + ']';
-    }
-    else {
-        let overlay = 0;
-        addFilter('[thread' + threads[0] + '] [thread' + threads[1] + '] overlay [overlay0]');
-        for (let i = 2; i < threads.length; i++) {
-            addFilter('[overlay' + overlay + '] [thread' + threads[i] + '] overlay [overlay' + (++overlay) + ']');
+    let videoMap, audioMap;
+    if (VIDEO) {
+        if (threads.length === 1) {
+            videoMap = '[thread' + threads[0] + ']';
         }
-        videoMap = '[overlay' + overlay + ']';
-    }
-    if (audioStream > 0) {
-        let filter = '';
-        for (let i = 0; i < audioStream; i++) {
-            filter += '[astream' + i + '] ';
+        else {
+            let overlay = 0;
+            addFilter('[thread' + threads[0] + '] [thread' + threads[1] + '] overlay [overlay0]');
+            for (let i = 2; i < threads.length; i++) {
+                addFilter('[overlay' + overlay + '] [thread' + threads[i] + '] overlay [overlay' + (++overlay) + ']');
+            }
+            videoMap = '[overlay' + overlay + ']';
         }
-        filter += 'amix=inputs=' + audioStream + ', volume=10 [audiomix]';
-        addFilter(filter);
     }
-    args.push('-filter_complex', filters, '-map', videoMap);
-    if (audioStream > 0) {
-        args.push('-map', '[audiomix]');
+    if (AUDIO) {
+        if (threads.length === 1) {
+            audioMap = '[athread' + threads[0] + ']';
+        }
+        else {
+            let filter = '';
+            for (let i = 0; i < threads.length; i++) {
+                filter += '[athread' + threads[i] + '] ';
+            }
+            filter += 'amerge=inputs=' + threads.length + ', pan=stereo|c0=c0';
+            // Left channel mix:
+            for (let i = 1; i < threads.length; i++) {
+                filter += '+c' + (i * 2);
+            }
+            // Right channel mix:
+            filter +='|c1=c1'
+            for (let i = 1; i < threads.length; i++) {
+                filter += '+c' + (i * 2 + 1);
+            }
+            filter += ', volume=5 [audiomix]'
+            addFilter(filter);
+            audioMap = '[audiomix]';
+        }
     }
-    args.push('-vcodec', 'libx264', '-acodec', 'mp3',
+    args.push('-filter_complex', filters);
+    if (VIDEO) {
+        args.push('-map', videoMap);
+    }
+    if (AUDIO) {
+        args.push('-map', audioMap);
+    }
+    args.push('-vcodec', 'libx264', '-acodec', 'aac',
         '-f', 'segment', '-initial_offset', (mediaSequence * SEGMENT_MS / 1000),
         '-segment_time', '100', '-segment_format', 'mpeg_ts',
         '-segment_start_number', mediaSequence,
@@ -299,10 +339,12 @@ Server.prototype.ffmpeg = function (segment, done) {
 
     segment.status = 'encoding';
 
-    // console.log('segment', mediaSequence, segment.startOffset, segment.eventsByThread);
-    // console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
-    // setTimeout(done, 0);
-    // return;
+    if (DEBUG) {
+        console.log('segment', mediaSequence, segment.startOffset, segment.eventsByThread);
+        console.log('ffmpeg', args.map(arg => '"' + arg + '"').join(' '));
+        setTimeout(done, 0);
+        return;
+    }
 
     child_process.execFile('ffmpeg', args, (err, stdout, stderr) => {
         if (err) {
@@ -528,9 +570,6 @@ Server.prototype.eventsToSegments = function* (eventStream) {
             eventsByThread = new Map();
             startOffset += SEGMENT_MS;
         }
-        if (event.type === 'bgswitch') {
-            continue;
-        }
         event.segmentOffset = event.globalOffset - startOffset;
         let thread = typeof event.thread === 'number' ? event.thread : 'main';
         let events = eventsByThread.get(thread);
@@ -539,14 +578,16 @@ Server.prototype.eventsToSegments = function* (eventStream) {
         }
         // Check for overlapping events and truncate if needed.
         let prevEvent = events[events.length - 1];
-        if (prevEvent && prevEvent.type === 'anim' &&
+        if (prevEvent && prevEvent.type === 'play' &&
             (prevEvent.globalOffset + prevEvent.duration > event.globalOffset)) {
             prevEvent.duration = event.segmentOffset - prevEvent.segmentOffset;
             if (prevEvent.duration === 0) {
                 events.pop();
             }
         }
-        events.push(event);
+        if (event.type !== 'bgswitch') {
+            events.push(event);
+        }
     }
     yield {
         startOffset: startOffset,
