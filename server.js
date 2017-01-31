@@ -34,12 +34,25 @@ var pack = require('./js/pack');
 var charm = require('charm')();
 charm.pipe(process.stdout);
 
+let home = process.env.HOME || Path.join(process.env.HOMEDRIVE, process.env.HOMEPATH);
+
+var argv = require('minimist')(process.argv.slice(2), {
+    default: {
+        'scripts': '../benji-data/scripts',
+        'media': Path.join(home, 'Dropbox', 'Benji Tests')
+    },
+    alias: {
+        's': 'scripts',
+        'm': 'media'
+    }
+});
+
 function readFile(path) {
     return pr.call(fs.readFile, path, 'utf8');
 }
 
 function readScript(path) {
-    return readFile(Path.join('../benji-data/scripts', path));
+    return readFile(Path.join(argv.scripts, path));
 }
 
 function Server() {
@@ -614,7 +627,7 @@ Server.prototype.load = function (scriptPath) {
     this.playing = false;
     var self = this;
 
-    return pack(null, __dirname).then(() => readFile('anims.json')).then(function (manifestSrc) {
+    return pack(argv.media, __dirname).then(() => readFile('anims.json')).then(function (manifestSrc) {
         self.manifest = JSON.parse(manifestSrc);
         self.scripts = {};
 
