@@ -268,27 +268,21 @@ Compiler.prototype.compile = function* (script, ctx) {
             else {
                 count = script.args[1];
             }
-            for (i = 0; i < count; i++) {
-                yield* this.compile(script.child, ctx);
-            }
+            yield* this.repeatTimes(count, script.child, ctx);
         }
         else if (script.cmd === 'repeat_for') {
-            var millis = ms(script.args[1] + ' ' + script.args[2]);
-            until = this.offset + millis;
-            while (this.offset < until) {
-                yield* this.compile(script.child, ctx);
-            }
+            let millis = ms(script.args[1] + ' ' + script.args[2]);
+            yield* this.repeatFor(millis, script.child, ctx);
         }
         else if (script.cmd === 'repeat_until') {
-            until = parseTime(script.args[1]);
-            while (this.offset < until) {
-                yield* this.compile(script.child, ctx);
+            let until = parseTime(script.args[1]);
+            let millis = Math.max(until - this.offset, 0);
+            if (millis > 0) {
+                yield* this.repeatFor(millis, script.child, ctx);
             }
         }
         else if (script.cmd === 'repeat_forever') {
-            while (true) {
-                yield* this.compile(script.child, ctx);
-            }
+            yield* this.repeatTimes(Infinity, script.child, ctx);
         }
         else if (script.cmd === 'maybe') {
             if (this.chance.bool({likelihood: script.args[0]})) {
@@ -334,16 +328,32 @@ Compiler.prototype.compile = function* (script, ctx) {
                 type: 'bgswitch',
                 thread: thread
             });
-            if (this.isNothing(script.child)) {
+            let simpleCmd = this.getSimpleCommand(script.child);
+            if (simpleCmd && simpleCmd.cmd === 'nothing') {
                 delete this.backgrounds[thread];
             }
             else {
+                let bgScript = script.child;
+                // Background scripts get repeated forever.
+                if (bgScript.cmd !== 'repeat_forever') {
+                    bgScript = {
+                        type: 'Cmd',
+                        cmd: 'repeat_forever',
+                        child: bgScript
+                    };
+                }
                 var bgCompiler = new Compiler(this.date, this.chance, this.manifest, this.subs, this.includedScripts, this.vars, this.offset);
                 this.backgrounds[thread] = {
                     compiler: bgCompiler,
-                    events: (function* () {
+                    events: (function *() {
                         while (true) {
-                            yield* bgCompiler.compileRoot(script.child);
+                            // todo: revert
+                            for (let event of bgCompiler.compileRoot(bgScript)) {
+                                if (event.duration < 1000) {
+                                    // console.log(event);
+                                }
+                                yield event;
+                            }
                         }
                     })()
                 };
@@ -387,15 +397,80 @@ Compiler.prototype.compile = function* (script, ctx) {
     }
 };
 
-Compiler.prototype.isNothing = function (script) {
-    if (script.type === 'Cmd') {
-        return script.cmd === 'nothing';
-    }
-    else if (script.type === 'Seq') {
-        return script.children.length === 1 && this.isNothing(script.children[0]);
+Compiler.prototype.repeatFor = function* (millis, script, ctx) {
+    var simpleCmd = this.getSimpleCommand(script);
+    if (simpleCmd) {
+        // Optimize to reduce number of events and speed up seeking.
+        let totalFrames;
+        let animName = script.args && script.args[0];
+        let anim = this.manifest[simpleCmd.animName];
+        if (!anim) {
+            // This branch processes 'nothing' commands too.
+            simpleCmd.cmd = 'nothing';
+            totalFrames = 1;
+        }
+        else {
+            totalFrames = anim.totalFrames;
+        }
+        let count = Math.ceil(millis / totalFrames);
+        yield* this.addAnimEvents(animName, totalFrames * count);
     }
     else {
-        return false;
+        // Cannot optimize complex script, just repeat normally.
+        let until = this.offset + millis;
+        while (this.offset < until) {
+            yield* this.compile(script, ctx);
+        }
+    }
+};
+
+Compiler.prototype.repeatTimes = function* (count, script, ctx) {
+    var simpleCmd = this.getSimpleCommand(script);
+    if (simpleCmd) {
+        // Optimize to reduce number of events and speed up seeking.
+        let totalFrames;
+        let animName = script.args && script.args[0];
+        let anim = this.manifest[simpleCmd.animName];
+        if (!anim) {
+            // This branch processes 'nothing' commands too.
+            simpleCmd.cmd = 'nothing';
+            totalFrames = 1;
+        }
+        else {
+            totalFrames = anim.totalFrames;
+        }
+        if (count === Infinity) {
+            // Make sure we generate as close to 50 frames as possible (more is fine, but less is slow).
+            let batchSize = Math.floor(800 / totalFrames) * totalFrames;
+            if (batchSize === 0) {
+                // totalFrames must be >50.
+                batchSize = totalFrames;
+            }
+            while (true) {
+                yield* this.addAnimEvents(animName, batchSize);
+            }
+        }
+        else {
+            yield* this.addAnimEvents(animName, totalFrames * count);
+        }
+    }
+    else {
+        // Cannot optimize complex script, just repeat normally.
+        for (let i = 0; i < count; i++) {
+            yield* this.compile(script, ctx);
+        }
+    }
+};
+
+Compiler.prototype.getSimpleCommand = function (script) {
+    if (script.type === 'Cmd' && (script.cmd === 'nothing' || script.cmd === 'play')) {
+        return script;
+    }
+    else if (script.type === 'Seq' && script.children.length === 1) {
+        return this.getSimpleCommand(script.children[0]);
+    }
+    else {
+        return null;
     }
 };
 
@@ -412,22 +487,23 @@ Compiler.prototype.evalExpr = function (expr) {
 Compiler.prototype.addAnimEvents = function* (animName, frames) {
     var anim = this.manifest[animName];
     if (!anim) {
-        console.error('Skipped unknown animation ' + animName);
+        if (animName) {
+            // This branch processes 'nothing' commands too.
+            console.error('Skipped unknown animation ' + animName);
+        }
         yield this.addEvent({
             type: 'nothing',
-        }, 1);
+        }, frames);
         return;
     }
     var rpt = 1;
     if (frames) {
         rpt = Math.ceil(frames / anim.totalFrames);
     }
-    for (var i = 0; i < rpt; i++) {
-        yield this.addEvent({
-            type: 'play',
-            anim: animName
-        }, anim.totalFrames);
-    }
+    yield this.addEvent({
+        type: 'play',
+        anim: animName
+    }, rpt * anim.totalFrames);
 }
 
 if (typeof module !== 'undefined') {

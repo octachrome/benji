@@ -16,7 +16,7 @@ var DELETE_DELAY = 5000;
 var MAX_WORKERS = 2;
 var ENCODE_MS = SEGMENT_MS; // Expected time taken to encode a segment.
 var PORT = 8080;
-var DEBUG = false;
+var DEBUG = true;
 var VIDEO = true;
 var AUDIO = true;
 
@@ -81,6 +81,27 @@ function Server() {
     this.running = 0;
     this.waiting = [];
 }
+
+Server.prototype.seekTest = function (startTime) {
+    var timeOffset = new Date().getTime() - startTime;
+
+    function currentTimestamp() {
+        return new Date().getTime() - timeOffset;
+    }
+
+    let eventStream = doCompileScript(startTime, this.manifest, this.root, this.scripts);
+    let next = eventStream.next();
+    console.log('Seeking...');
+    let lastLogged;
+    while (!next.done && next.value.globalOffset + SEGMENT_MS < currentTimestamp()) {
+        let event = next.value;
+        if (!lastLogged || event.globalOffset - lastLogged > 30*60*1000) {
+            charm.erase('line').move(-100, 0).write(new Date(event.globalOffset).toString());
+            lastLogged = event.globalOffset;
+        }
+        next = eventStream.next();
+    }
+};
 
 Server.prototype.startGenerator = function (startTime) {
     var timeOffset = new Date().getTime() - startTime;
@@ -596,6 +617,7 @@ Server.prototype.eventsToSegments = function* (eventStream) {
     let eventsByThread = new Map();
     let startOffset = null;
     for (let event of eventStream) {
+        console.log(event);
         if (startOffset === null) {
             let mediaSeq = Math.floor(event.globalOffset / SEGMENT_MS);
             startOffset = mediaSeq * SEGMENT_MS;
