@@ -60,8 +60,8 @@ let home = process.env.HOME || Path.join(process.env.HOMEDRIVE, process.env.HOME
 
 var argv = require('minimist')(process.argv.slice(2), {
     default: {
-        'scripts': '../benji-data/scripts',
-        'media': Path.join(home, 'Dropbox', 'Benji Tests')
+        'scripts': 'd:/dropbox/Benji/scripts',
+        'media': 'd:/dropbox/Benji'
     },
     alias: {
         's': 'scripts',
@@ -391,7 +391,7 @@ Server.prototype.ffmpeg = function (segment, done) {
 };
 
 Server.prototype.createDialogFilter = function (event) {
-    var lines = wordwrap(event.dialog.replace(/\\/, '\\\\').replace(/'/g, "\u2019"))
+    var lines = wordwrap(event.dialog.replace(/\\/, '\\\\').replace(/'/g, "\u2019")).replace(/:/, '\\:')
         .split(/[\r\n]+/);
     var filter = '';
     var lineOffset = -lines.length / 2;
@@ -404,7 +404,7 @@ Server.prototype.createDialogFilter = function (event) {
             ((event.segmentOffset + event.duration) / FRAME_MS - 1) + "')" +
             ":x=(main_w-text_w)/2:y=(760+" + (lineOffset + i) + "*text_h)";
         if (process.platform === 'win32') {
-            filter += ':fontfile=/Windows/Fonts/arial.ttf';
+            filter += ":fontfile='c\\:/Windows/Fonts/arial.ttf'";
         }
         filter += ":fontsize=30:fontcolor=" + (DIALOG_COLORS[event.pos] || 'black') +
             ":expansion=none:text='" + lines[i] + "'";
