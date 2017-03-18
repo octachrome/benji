@@ -412,7 +412,8 @@ Compiler.prototype.repeatFor = function* (millis, script, ctx) {
         else {
             totalFrames = anim.totalFrames;
         }
-        let count = Math.ceil(millis / totalFrames);
+        let totalTime = totalFrames * 1000 / FRAME_RATE;
+        let count = Math.ceil(millis / totalTime);
         yield* this.addAnimEvents(animName, totalFrames * count);
     }
     else {
