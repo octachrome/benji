@@ -402,8 +402,8 @@ Compiler.prototype.repeatFor = function* (millis, script, ctx) {
     if (simpleCmd) {
         // Optimize to reduce number of events and speed up seeking.
         let totalFrames;
-        let animName = script.args && script.args[0];
-        let anim = this.manifest[simpleCmd.animName];
+        let animName = simpleCmd.args && simpleCmd.args[0];
+        let anim = this.manifest[animName];
         if (!anim) {
             // This branch processes 'nothing' commands too.
             simpleCmd.cmd = 'nothing';
@@ -429,8 +429,8 @@ Compiler.prototype.repeatTimes = function* (count, script, ctx) {
     if (simpleCmd) {
         // Optimize to reduce number of events and speed up seeking.
         let totalFrames;
-        let animName = script.args && script.args[0];
-        let anim = this.manifest[simpleCmd.animName];
+        let animName = simpleCmd.args && simpleCmd.args[0];
+        let anim = this.manifest[animName];
         if (!anim) {
             // This branch processes 'nothing' commands too.
             simpleCmd.cmd = 'nothing';

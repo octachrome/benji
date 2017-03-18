@@ -16,7 +16,7 @@ var DELETE_DELAY = 5000;
 var MAX_WORKERS = 2;
 var ENCODE_MS = SEGMENT_MS; // Expected time taken to encode a segment.
 var PORT = 8080;
-var DEBUG = true;
+var DEBUG = false;
 var VIDEO = true;
 var AUDIO = true;
 
