@@ -722,7 +722,16 @@ Server.prototype.parseIncludedScripts = function (script, parser) {
 
 if (require.main === module) {
     var dateString = argv._.join(' ').trim();
-    var timestamp = dateString ? new Date(dateString) : new Date();
+    if (dateString) {
+        var timestamp = new Date(dateString);
+        if (isNaN(timestamp.getTime())) {
+            console.error('Failed to parse timestamp: ' + dateString);
+            process.exit(1);
+        }
+    }
+    else {
+        timestamp = new Date();
+    }
     var server = new Server();
     pr.call(fs.emptyDir, Path.join(__dirname, SEGMENT_DIR)).then(() => {
         return server.load('script.benji');
