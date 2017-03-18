@@ -33,6 +33,9 @@ var doCompileScript = require('./js/compiler');
 var pack = require('./js/pack');
 var charm = require('charm')();
 charm.pipe(process.stdout);
+var eventCache = require('lru-cache')({
+    max: 10
+});
 
 var ffmpegResult = child_process.spawnSync('ffmpeg', ['-version'], {encoding: 'utf8'});
 if (ffmpegResult.error) {
@@ -207,6 +210,9 @@ Server.prototype.startServer = function () {
     app.use('/segments.m3u8', (req, res, next) => {
         this.writePlaylist(req, res, next);
     });
+    app.use('/events.json', (req, res, next) => {
+        this.writeEvents(req, res, next);
+    });
     app.use('/', serveStatic(Path.join(__dirname, 'www')));
     app.use('/', serveStatic(Path.join(__dirname, SEGMENT_DIR)));
     let server = app.listen(PORT);
@@ -253,6 +259,14 @@ Server.prototype.writePlaylist = function (req, res, next) {
         });
         res.end(playlistText);
     }
+};
+
+Server.prototype.writeEvents = function (req, res, next) {
+    var cachedEvents = eventCache.get(new Date().toDateString());
+    res.writeHead(200, {
+        'Content-Type': 'application/json'
+    });
+    res.end(JSON.stringify(cachedEvents ? cachedEvents.events : [], null, 2));
 };
 
 Server.prototype.ffmpeg = function (segment, done) {
@@ -492,7 +506,17 @@ Server.prototype.getSegmentsForDate = function* (startTime) {
             this.splitEvents(
                 this.transformNothings(
                     this.setDialogDurations(
-                        doCompileScript(startTime, this.manifest, this.root, this.scripts))))));
+                        this.getCachedEvents(startTime))))));
+};
+
+Server.prototype.getCachedEvents = function* (startTime) {
+    var cacheKey = startTime.toDateString();
+    var cachedEvents = eventCache.get(cacheKey);
+    if (!cachedEvents) {
+        cachedEvents = new CachedEvents(startTime, this);
+        eventCache.set(cacheKey, cachedEvents);
+    }
+    yield* cachedEvents.getGenerator();
 };
 
 Server.prototype.simplifySegments = function* (segments) {
@@ -715,6 +739,34 @@ Server.prototype.parseIncludedScripts = function (script, parser) {
             });
             if (promises.length) {
                 return Promise.all(promises);
+            }
+        }
+    }
+};
+
+function CachedEvents(startTime, server) {
+    this.startTime = startTime;
+    this.server = server;
+    this.events = [];
+    this.done = false;
+    this.generator = doCompileScript(this.startTime, this.server.manifest, this.server.root, this.server.scripts);
+};
+
+CachedEvents.prototype.getGenerator = function* () {
+    let idx = 0;
+    while (!this.done) {
+        if (idx < this.events.length) {
+            yield this.events[idx++];
+        }
+        else {
+            let next = this.generator.next();
+            if (next.done) {
+                this.done = true;
+            }
+            else {
+                this.events.push(next.value);
+                idx++;
+                yield next.value;
             }
         }
     }
