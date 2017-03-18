@@ -56,16 +56,12 @@ else {
     }
 }
 
-let home = process.env.HOME || Path.join(process.env.HOMEDRIVE, process.env.HOMEPATH);
-
 var argv = require('minimist')(process.argv.slice(2), {
     default: {
-        'scripts': 'd:/dropbox/Benji/scripts',
-        'media': 'd:/dropbox/Benji'
+        'dropbox': process.env.USER === 'chris' ? '/home/chris/Dropbox/Benji' : 'd:/dropbox/Benji'
     },
     alias: {
-        's': 'scripts',
-        'm': 'media'
+        'd': 'dropbox'
     }
 });
 
@@ -74,7 +70,7 @@ function readFile(path) {
 }
 
 function readScript(path) {
-    return readFile(Path.join(argv.scripts, path));
+    return readFile(Path.join(argv.dropbox, 'scripts', path));
 }
 
 function Server() {
@@ -670,7 +666,7 @@ Server.prototype.load = function (scriptPath) {
     this.playing = false;
     var self = this;
 
-    return pack(argv.media, __dirname).then(() => readFile('anims.json')).then(function (manifestSrc) {
+    return pack(argv.dropbox, __dirname).then(() => readFile('anims.json')).then(function (manifestSrc) {
         self.manifest = JSON.parse(manifestSrc);
         self.scripts = {};
 
