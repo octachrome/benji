@@ -617,7 +617,6 @@ Server.prototype.eventsToSegments = function* (eventStream) {
     let eventsByThread = new Map();
     let startOffset = null;
     for (let event of eventStream) {
-        console.log(event);
         if (startOffset === null) {
             let mediaSeq = Math.floor(event.globalOffset / SEGMENT_MS);
             startOffset = mediaSeq * SEGMENT_MS;
@@ -726,7 +725,7 @@ Server.prototype.parseIncludedScripts = function (script, parser) {
 };
 
 if (require.main === module) {
-    var dateString = process.argv.slice(2).join(' ').trim();
+    var dateString = argv._.join(' ').trim();
     var timestamp = dateString ? new Date(dateString) : new Date();
     var server = new Server();
     pr.call(fs.emptyDir, Path.join(__dirname, SEGMENT_DIR)).then(() => {
