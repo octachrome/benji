@@ -141,7 +141,7 @@ function writeManifest(anims, audio, out) {
     anims.forEach(function (anim) {
         var pattern = anim.segments[0][0];
         if (anim.totalFrames > 1) {
-            var match = pattern.match(/^(.*?)(0+)\.png$/);
+            var match = pattern.match(/^(.*?_?)(0*[0-9])\.png$/);
             if (match) {
                 pattern = match[1] + '%0' + match[2].length + 'd.png';
             }
