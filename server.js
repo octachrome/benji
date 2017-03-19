@@ -262,11 +262,13 @@ Server.prototype.writePlaylist = function (req, res, next) {
 };
 
 Server.prototype.writeEvents = function (req, res, next) {
-    var cachedEvents = eventCache.get(new Date().toDateString());
-    res.writeHead(200, {
-        'Content-Type': 'application/json'
+    let cachedEvents = this.getCachedEvents(new Date());
+    cachedEvents.getAllEvents().then(function (events) {
+        res.writeHead(200, {
+            'Content-Type': 'application/json'
+        });
+        res.end(JSON.stringify(events, null, 2));
     });
-    res.end(JSON.stringify(cachedEvents ? cachedEvents.events : [], null, 2));
 };
 
 Server.prototype.ffmpeg = function (segment, done) {
@@ -506,17 +508,17 @@ Server.prototype.getSegmentsForDate = function* (startTime) {
             this.splitEvents(
                 this.transformNothings(
                     this.setDialogDurations(
-                        this.getCachedEvents(startTime))))));
+                        this.getCachedEvents(startTime).getGenerator())))));
 };
 
-Server.prototype.getCachedEvents = function* (startTime) {
-    var cacheKey = startTime.toDateString();
-    var cachedEvents = eventCache.get(cacheKey);
+Server.prototype.getCachedEvents = function (startTime) {
+    let cacheKey = startTime.toDateString();
+    let cachedEvents = eventCache.get(cacheKey);
     if (!cachedEvents) {
         cachedEvents = new CachedEvents(startTime, this);
         eventCache.set(cacheKey, cachedEvents);
     }
-    yield* cachedEvents.getGenerator();
+    return cachedEvents;
 };
 
 Server.prototype.simplifySegments = function* (segments) {
@@ -759,17 +761,42 @@ CachedEvents.prototype.getGenerator = function* () {
             yield this.events[idx++];
         }
         else {
-            let next = this.generator.next();
-            if (next.done) {
-                this.done = true;
+            let next = this.getNextEvent();
+            if (next) {
+                yield next;
             }
-            else {
-                this.events.push(next.value);
-                idx++;
-                yield next.value;
-            }
+            idx++;
         }
     }
+};
+
+CachedEvents.prototype.getNextEvent = function () {
+    let next = this.generator.next();
+    if (next.done) {
+        this.done = true;
+    }
+    else {
+        this.events.push(next.value);
+        return next.value;
+    }
+};
+
+CachedEvents.prototype.getAllEvents = function () {
+    return new Promise((resolve) => {
+        let poll = () => {
+            for (let i = 0; i < 1000 && !this.done; i++) {
+                this.getNextEvent();
+            }
+            if (this.done) {
+                resolve(this.events);
+            }
+            else {
+                setTimeout(poll, 5);
+            }
+        };
+
+        poll();
+    });
 };
 
 if (require.main === module) {
