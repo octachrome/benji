@@ -166,7 +166,7 @@ Server.prototype.startGenerator = function (startTime) {
             charm.up(wroteLines).erase('down');
             wroteLines = 0;
             for (let kv of this.workingSet) {
-                charm.write(String(kv[0])).write('\t');
+                charm.write(new Date(kv[1].startOffset) + '  ' + kv[0] + '  ');
                 if (kv[1].status === 'ready') {
                     charm.foreground('green');
                 }
