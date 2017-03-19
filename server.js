@@ -255,7 +255,8 @@ Server.prototype.writePlaylist = function (req, res, next) {
                 '#EXTINF:' + (SEGMENT_MS / 1000) + ',\n' +
                 sprintf(SEGMENT_FILENAME, seq)).join('\n');
         res.writeHead(200, {
-            'Content-Type': 'application/vnd.apple.mpegurl'
+            'Content-Type': 'application/vnd.apple.mpegurl',
+            'Cache-Control': 'max-age=0, no-cache'
         });
         res.end(playlistText);
     }
@@ -263,9 +264,10 @@ Server.prototype.writePlaylist = function (req, res, next) {
 
 Server.prototype.writeEvents = function (req, res, next) {
     let cachedEvents = this.getCachedEvents(new Date());
-    cachedEvents.getAllEvents().then(function (events) {
+    cachedEvents.getEventList().then(function (events) {
         res.writeHead(200, {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Cache-Control': 'max-age=0, no-cache'
         });
         res.end(JSON.stringify(events, null, 2));
     });
@@ -506,9 +508,8 @@ Server.prototype.getSegmentsForDate = function* (startTime) {
     yield* this.simplifySegments(
         this.eventsToSegments(
             this.splitEvents(
-                this.transformNothings(
-                    this.setDialogDurations(
-                        this.getCachedEvents(startTime).getGenerator())))));
+                this.setDialogDurations(
+                    this.getCachedEvents(startTime).getGenerator()))));
 };
 
 Server.prototype.getCachedEvents = function (startTime) {
@@ -622,16 +623,6 @@ Server.prototype.splitEvents = function* (eventStream) {
     }
     while (eventQueue.length) {
         yield* nextSegment();
-    }
-};
-
-Server.prototype.transformNothings = function* (eventStream) {
-    for (let event of eventStream) {
-        if (event.type === 'nothing') {
-            event.type = 'play';
-            event.anim = 'nothing';
-        }
-        yield event;
     }
 };
 
@@ -751,44 +742,61 @@ function CachedEvents(startTime, server) {
     this.server = server;
     this.events = [];
     this.done = false;
-    this.generator = doCompileScript(this.startTime, this.server.manifest, this.server.root, this.server.scripts);
+    this.generator = this.transformNothings(doCompileScript(this.startTime, this.server.manifest, this.server.root, this.server.scripts));
 };
 
 CachedEvents.prototype.getGenerator = function* () {
     let idx = 0;
-    while (!this.done) {
+    while (true) {
         if (idx < this.events.length) {
             yield this.events[idx++];
         }
         else {
-            let next = this.getNextEvent();
-            if (next) {
-                yield next;
+            let next = this.generator.next();
+            if (next.done) {
+                this.done = true;
+                break;
             }
-            idx++;
+            else {
+                this.events.push(next.value);
+                idx++;
+                yield next.value;
+            }
         }
     }
 };
 
-CachedEvents.prototype.getNextEvent = function () {
-    let next = this.generator.next();
-    if (next.done) {
-        this.done = true;
-    }
-    else {
-        this.events.push(next.value);
-        return next.value;
-    }
-};
-
-CachedEvents.prototype.getAllEvents = function () {
+CachedEvents.prototype.getEventList = function () {
     return new Promise((resolve) => {
+        let eventsByThread = {};
+        let generator = this.getGenerator();
+
         let poll = () => {
-            for (let i = 0; i < 1000 && !this.done; i++) {
-                this.getNextEvent();
+            let next;
+            for (let i = 0; i < 1000; i++) {
+                next = generator.next();
+                if (next.done) {
+                    break;
+                }
+                else {
+                    let event = next.value;
+                    if (event.type !== 'play') {
+                        continue;
+                    }
+                    let thread = typeof event.thread === 'number' ? event.thread : 'main';
+                    let events = eventsByThread[thread];
+                    if (!events) {
+                        events = [];
+                        eventsByThread[thread] = events;
+                    }
+                    let prevEvent = events[events.length - 1];
+                    if (!prevEvent || prevEvent.anim !== event.anim) {
+                        events.push(event);
+                    }
+                }
             }
-            if (this.done) {
-                resolve(this.events);
+            if (next.done) {
+                resolve(eventsByThread);
             }
             else {
                 setTimeout(poll, 5);
@@ -797,6 +805,16 @@ CachedEvents.prototype.getAllEvents = function () {
 
         poll();
     });
+};
+
+CachedEvents.prototype.transformNothings = function* (eventStream) {
+    for (let event of eventStream) {
+        if (event.type === 'nothing') {
+            event.type = 'play';
+            event.anim = 'nothing';
+        }
+        yield event;
+    }
 };
 
 if (require.main === module) {
