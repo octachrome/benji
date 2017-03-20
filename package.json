@@ -13,6 +13,7 @@
     "chance": "^1.0.1",
     "charm": "^1.0.2",
     "connect": "^3.5.0",
+    "connect-cache-control": "^1.0.0",
     "fs-extra": "^2.0.0",
     "jquery": "^2.2.2",
     "knockout": "^3.4.0",

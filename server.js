@@ -21,6 +21,7 @@ var VIDEO = true;
 var AUDIO = true;
 
 var fs = require('fs-extra');
+var url = require('url');
 var child_process = require('child_process');
 var Path = require('path');
 var pr = require('promise-ring');
@@ -28,6 +29,7 @@ var PEG = require('pegjs');
 var wordwrap = require('wordwrap')(DIALOG_PER_LINE);
 var serveStatic = require('serve-static');
 var connect = require('connect');
+var cacheControl = require('connect-cache-control');
 var sprintf = require('sprintf-js').sprintf;
 var doCompileScript = require('./js/compiler');
 var pack = require('./js/pack');
@@ -122,7 +124,6 @@ Server.prototype.startGenerator = function (startTime) {
         // console.log('segment', segment.startOffset, segment.eventsByThread);
         next = segmentStream.next();
     }
-    console.log('\nGo to http://localhost:' + PORT + ' in your browser');
 
     this.workingSet = new Map();
     this.allowedWorkers = MAX_WORKERS;
@@ -181,7 +182,14 @@ Server.prototype.startGenerator = function (startTime) {
             }
         }
 
-        if (!next.done) {
+        if (this.seekPosition) {
+            let seekPosition = this.seekPosition;
+            this.seekPosition = null;
+            setTimeout(() => {
+                this.startGenerator(seekPosition);
+            }, POLL_INTERVAL);
+        }
+        else if (!next.done) {
             setTimeout(tick, POLL_INTERVAL);
         }
     };
@@ -207,15 +215,22 @@ Server.prototype.enqueue = function (fn) {
 
 Server.prototype.startServer = function () {
     let app = connect();
+    app.use('/segments.m3u8', cacheControl);
     app.use('/segments.m3u8', (req, res, next) => {
         this.writePlaylist(req, res, next);
     });
-    app.use('/events.json', (req, res, next) => {
+    app.use('/events', cacheControl);
+    app.use('/events', (req, res, next) => {
         this.writeEvents(req, res, next);
+    });
+    app.use('/play', cacheControl);
+    app.use('/play', (req, res, next) => {
+        this.seekTo(req, res, next);
     });
     app.use('/', serveStatic(Path.join(__dirname, 'www')));
     app.use('/', serveStatic(Path.join(__dirname, SEGMENT_DIR)));
     let server = app.listen(PORT);
+    console.log('Go to http://localhost:' + PORT + ' in your browser');
     server.on('error', function (err) {
         console.error(err);
         process.exit(1);
@@ -255,8 +270,7 @@ Server.prototype.writePlaylist = function (req, res, next) {
                 '#EXTINF:' + (SEGMENT_MS / 1000) + ',\n' +
                 sprintf(SEGMENT_FILENAME, seq)).join('\n');
         res.writeHead(200, {
-            'Content-Type': 'application/vnd.apple.mpegurl',
-            'Cache-Control': 'max-age=0, no-cache'
+            'Content-Type': 'application/vnd.apple.mpegurl'
         });
         res.end(playlistText);
     }
@@ -266,11 +280,29 @@ Server.prototype.writeEvents = function (req, res, next) {
     let cachedEvents = this.getCachedEvents(new Date());
     cachedEvents.getEventList().then(function (events) {
         res.writeHead(200, {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'max-age=0, no-cache'
+            'Content-Type': 'application/json'
         });
         res.end(JSON.stringify(events, null, 2));
     });
+};
+
+Server.prototype.seekTo = function (req, res, next) {
+    try {
+        let dateTime = decodeURI(url.parse(req.url).pathname.substr('/'.length));
+        let timestamp = new Date(dateTime);
+        if (!isNaN(timestamp)) {
+            this.seekPosition = timestamp;
+        }
+        else {
+            throw new Error('Failed to parse timestamp: ' + dateTime);
+        }
+        res.writeHead(204);
+        res.end();
+    }
+    catch (e) {
+        res.writeHead(500);
+        res.end(e.message);
+    }
 };
 
 Server.prototype.ffmpeg = function (segment, done) {
@@ -830,10 +862,10 @@ if (require.main === module) {
         timestamp = new Date();
     }
     var server = new Server();
+    server.startServer();
     pr.call(fs.emptyDir, Path.join(__dirname, SEGMENT_DIR)).then(() => {
         return server.load('script.benji');
     }).then(() => {
-        server.startServer();
         server.startGenerator(timestamp);
     }).catch(err => {
         console.log(err.stack);
