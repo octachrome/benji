@@ -21,12 +21,36 @@ function ViewModel() {
             type: 'PUT',
             url: '/play/' + dateTime
         });
+        self.startHls();
     });
+
+    self.startHls();
 }
 
 function toDateTimeString(date) {
     return date.toISOString().substr(0, 10) + ' ' + date.toLocaleTimeString();
 }
+
+ViewModel.prototype.startHls = function () {
+    if (Hls.isSupported()) {
+        if (this.hls) {
+            this.hls.destroy();
+            this.hls = null;
+            return setTimeout(this.startHls.bind(this), 200);
+        }
+        var video = document.getElementById('video');
+        var hls = new Hls({
+            manifestLoadingMaxRetry: 10,
+            debug: true
+        });
+        hls.loadSource('segments.m3u8');
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            video.play();
+        });
+        this.hls = hls;
+    }
+};
 
 ViewModel.prototype.showSidebar = function () {
     this.sidebarVisible(true);
@@ -53,16 +77,4 @@ ViewModel.prototype.gotoEvent = function (event) {
 $(function () {
     var viewModel = new ViewModel();
     ko.applyBindings(viewModel);
-
-    if (Hls.isSupported()) {
-        var video = document.getElementById('video');
-        var hls = new Hls({
-            debug: true
-        });
-        hls.loadSource('segments.m3u8');
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MANIFEST_PARSED, function () {
-            video.play();
-        });
-    }
 });
