@@ -83,27 +83,6 @@ function Server() {
     this.waiting = [];
 }
 
-Server.prototype.seekTest = function (startTime) {
-    var timeOffset = new Date().getTime() - startTime;
-
-    function currentTimestamp() {
-        return new Date().getTime() - timeOffset;
-    }
-
-    let eventStream = doCompileScript(startTime, this.manifest, this.root, this.scripts);
-    let next = eventStream.next();
-    console.log('Seeking...');
-    let lastLogged;
-    while (!next.done && next.value.globalOffset + SEGMENT_MS < currentTimestamp()) {
-        let event = next.value;
-        if (!lastLogged || event.globalOffset - lastLogged > 30*60*1000) {
-            charm.erase('line').move(-100, 0).write(new Date(event.globalOffset).toString());
-            lastLogged = event.globalOffset;
-        }
-        next = eventStream.next();
-    }
-};
-
 Server.prototype.startGenerator = function (startTime) {
     var timeOffset = new Date().getTime() - startTime;
     var segmentStream = this.getSegments(startTime);
@@ -712,7 +691,6 @@ Server.prototype.getParser = function () {
 };
 
 Server.prototype.load = function (scriptPath) {
-    this.playing = false;
     var self = this;
 
     return pack(argv.dropbox, __dirname).then(() => readFile('anims.json')).then(function (manifestSrc) {
@@ -780,21 +758,17 @@ function CachedEvents(startTime, server) {
 CachedEvents.prototype.getGenerator = function* () {
     let idx = 0;
     while (true) {
-        if (idx < this.events.length) {
-            yield this.events[idx++];
-        }
-        else {
+        while (idx >= this.events.length) {
             let next = this.generator.next();
             if (next.done) {
                 this.done = true;
-                break;
+                return;
             }
             else {
                 this.events.push(next.value);
-                idx++;
-                yield next.value;
             }
         }
+        yield Object.assign({}, this.events[idx++]);
     }
 };
 
