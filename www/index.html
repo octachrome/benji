@@ -82,14 +82,7 @@
     </div>
     <div class="events-list">
       <div data-bind="visible: events().length === 0">Loading...</div>
-      <!-- ko foreach: events -->
-      <div>
-        <a href="#" data-bind="click: $parent.gotoEvent.bind($parent)">
-          <span data-bind="text: time"></span>
-          <span data-bind="text: anim"></span>
-        </a>
-      </div>
-      <!-- /ko -->
+      <div data-bind="eventTable: events"/>
     </div>
   </div>
 </body>

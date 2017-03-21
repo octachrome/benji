@@ -74,6 +74,34 @@ ViewModel.prototype.gotoEvent = function (event) {
     this.date(toDateTimeString(new Date(event.globalOffset)));
 };
 
+ko.bindingHandlers.eventTable = {
+    init: function(element, valueAccessor, allBindings, viewModel, bindingContext) {
+    },
+    update: function(element, valueAccessor, allBindings, viewModel, bindingContext) {
+        var events = ko.unwrap(valueAccessor());
+        if (events && typeof events.map === 'function') {
+            var html = events.map(function (event, idx) {
+                return '<div>' +
+                    '<a href="#" data-index="' + idx + '">' +
+                    '<span>' + event.time + '</span>' +
+                    ' ' +
+                    '<span>' + event.anim + '</span>' +
+                    '</a>' +
+                    '</div>';
+            }).join('');
+            $(element).html(html);
+            $(element).find('a').click(function (e) {
+                var idx = $(e.delegateTarget).data('index');
+                var event = events[idx];
+                viewModel.gotoEvent(event);
+            });
+        }
+        else {
+            $(element).html('');
+        }
+    }
+};
+
 $(function () {
     var viewModel = new ViewModel();
     ko.applyBindings(viewModel);
