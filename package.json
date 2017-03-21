@@ -4,7 +4,7 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "prepublish": "grunt static"
+    "test": "./node_modules/.bin/mocha"
   },
   "author": "Chris Brown <octachrome@thebrown.net>",
   "homepage": "https://github.com/octachrome/benji",

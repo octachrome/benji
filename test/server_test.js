@@ -1,3 +1,5 @@
+'use strict';
+
 var expect = require('chai').expect;
 var Server = require('../server');
 
@@ -12,7 +14,7 @@ describe('Server', function () {
         it('should split an event that overlaps a segment boundary', function () {
             let events = Array.from(server.splitEvents([
                 {
-                    type: 'anim',
+                    type: 'play',
                     offset: 0,
                     globalOffset: 0,
                     duration: 4001
@@ -20,13 +22,13 @@ describe('Server', function () {
             ]));
             expect(events).to.deep.equal([
                 {
-                    type: 'anim',
+                    type: 'play',
                     globalOffset: 0,
                     offset: 0,
                     duration: 4000
                 },
                 {
-                    type: 'anim',
+                    type: 'play',
                     globalOffset: 4000,
                     offset: 4000,
                     duration: 1,
@@ -38,7 +40,7 @@ describe('Server', function () {
         it('should split an event that overlaps two segment boundaries', function () {
             let events = Array.from(server.splitEvents([
                 {
-                    type: 'anim',
+                    type: 'play',
                     offset: 0,
                     globalOffset: 0,
                     duration: 8001
@@ -46,20 +48,20 @@ describe('Server', function () {
             ]));
             expect(events).to.deep.equal([
                 {
-                    type: 'anim',
+                    type: 'play',
                     globalOffset: 0,
                     offset: 0,
                     duration: 4000
                 },
                 {
-                    type: 'anim',
+                    type: 'play',
                     globalOffset: 4000,
                     offset: 4000,
                     duration: 4000,
                     startFrame: 50
                 },
                 {
-                    type: 'anim',
+                    type: 'play',
                     globalOffset: 8000,
                     offset: 8000,
                     duration: 1,
@@ -73,13 +75,13 @@ describe('Server', function () {
         it('should truncate overlapping events', function () {
             let segments = Array.from(server.eventsToSegments([
                 {
-                    type: 'anim',
+                    type: 'play',
                     offset: 0,
                     globalOffset: 0,
                     duration: 100
                 },
                 {
-                    type: 'anim',
+                    type: 'play',
                     offset: 50,
                     globalOffset: 50,
                     duration: 100
@@ -87,14 +89,14 @@ describe('Server', function () {
             ]));
             expect(segments[0].eventsByThread.get('main')).to.deep.equal([
                 {
-                    type: 'anim',
+                    type: 'play',
                     offset: 0,
                     globalOffset: 0,
                     duration: 50,
                     segmentOffset: 0
                 },
                 {
-                    type: 'anim',
+                    type: 'play',
                     offset: 50,
                     globalOffset: 50,
                     duration: 100,
@@ -106,14 +108,14 @@ describe('Server', function () {
         it('should discard zero-length anim events', function () {
             let segments = Array.from(server.eventsToSegments([
                 {
-                    type: 'anim',
+                    type: 'play',
                     anim: 'anim1',
                     offset: 0,
                     globalOffset: 0,
                     duration: 100
                 },
                 {
-                    type: 'anim',
+                    type: 'play',
                     anim: 'anim2',
                     offset: 0,
                     globalOffset: 0,
@@ -122,7 +124,7 @@ describe('Server', function () {
             ]));
             expect(segments[0].eventsByThread.get('main')).to.deep.equal([
                 {
-                    type: 'anim',
+                    type: 'play',
                     anim: 'anim2',
                     offset: 0,
                     segmentOffset: 0,
@@ -141,7 +143,7 @@ describe('Server', function () {
                     duration: 100
                 },
                 {
-                    type: 'anim',
+                    type: 'play',
                     offset: 0,
                     globalOffset: 0,
                     duration: 100
@@ -156,7 +158,7 @@ describe('Server', function () {
                     duration: 100
                 },
                 {
-                    type: 'anim',
+                    type: 'play',
                     offset: 0,
                     segmentOffset: 0,
                     globalOffset: 0,
