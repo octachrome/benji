@@ -78,19 +78,21 @@ function readScript(path) {
     return readFile(Path.join(argv.dropbox, 'scripts', path));
 }
 
-function Server() {
+function Server(startTime) {
     this.running = 0;
     this.waiting = [];
+    this.timeOffset = new Date().getTime() - startTime.getTime();
 }
 
-Server.prototype.startGenerator = function (startTime) {
-    var timeOffset = new Date().getTime() - startTime;
-    var segmentStream = this.getSegments(startTime);
-    var next = segmentStream.next();
+Server.prototype.startGenerator = function () {
+    let timeOffset = this.timeOffset;
 
-    function currentTimestamp() {
+    let currentTimestamp = () => {
         return new Date().getTime() - timeOffset;
     }
+
+    var segmentStream = this.getSegments(new Date(currentTimestamp()));
+    var next = segmentStream.next();
 
     console.log('Seeking...');
     let lastLogged;
@@ -161,11 +163,10 @@ Server.prototype.startGenerator = function (startTime) {
             }
         }
 
-        if (this.seekPosition) {
-            let seekPosition = this.seekPosition;
-            this.seekPosition = null;
+        if (timeOffset !== this.timeOffset) {
+            // A seek has occurred - restart the generator.
             setTimeout(() => {
-                this.startGenerator(seekPosition);
+                this.startGenerator();
             }, POLL_INTERVAL);
         }
         else if (!next.done) {
@@ -256,8 +257,9 @@ Server.prototype.writePlaylist = function (req, res, next) {
 };
 
 Server.prototype.writeEvents = function (req, res, next) {
-    let cachedEvents = this.getCachedEvents(new Date());
-    cachedEvents.getEventList().then(function (events) {
+    let cachedEvents = this.getCachedEvents(new Date().getTime() - this.timeOffset);
+    cachedEvents.getEventList().then((events) => {
+        events.timeOffset = this.timeOffset;
         res.writeHead(200, {
             'Content-Type': 'application/json'
         });
@@ -267,16 +269,18 @@ Server.prototype.writeEvents = function (req, res, next) {
 
 Server.prototype.seekTo = function (req, res, next) {
     try {
-        let dateTime = decodeURI(url.parse(req.url).pathname.substr('/'.length));
-        let timestamp = new Date(dateTime);
-        if (!isNaN(timestamp)) {
-            this.seekPosition = timestamp;
+        let offsetParam = decodeURI(url.parse(req.url).pathname.substr('/'.length));
+        let globalOffset = parseInt(offsetParam);
+        if (globalOffset && !isNaN(globalOffset)) {
+            this.timeOffset = new Date().getTime() - globalOffset;
         }
         else {
-            throw new Error('Failed to parse timestamp: ' + dateTime);
+            throw new Error('Failed to parse offset: ' + offsetParam);
         }
-        res.writeHead(204);
-        res.end();
+        res.writeHead(200, {
+            'Content-Type': 'application/json'
+        });
+        res.end(JSON.stringify({timeOffset: this.timeOffset}, null, 2));
     }
     catch (e) {
         res.writeHead(500);
@@ -524,10 +528,11 @@ Server.prototype.getSegmentsForDate = function* (startTime) {
 };
 
 Server.prototype.getCachedEvents = function (startTime) {
-    let cacheKey = startTime.toDateString();
+    let date = new Date(startTime);
+    let cacheKey = date.toDateString();
     let cachedEvents = eventCache.get(cacheKey);
     if (!cachedEvents) {
-        cachedEvents = new CachedEvents(startTime, this);
+        cachedEvents = new CachedEvents(date, this);
         eventCache.set(cacheKey, cachedEvents);
     }
     return cachedEvents;
@@ -835,12 +840,12 @@ if (require.main === module) {
     else {
         timestamp = new Date();
     }
-    var server = new Server();
+    var server = new Server(timestamp);
     server.startServer();
     pr.call(fs.emptyDir, Path.join(__dirname, SEGMENT_DIR)).then(() => {
         return server.load('script.benji');
     }).then(() => {
-        server.startGenerator(timestamp);
+        server.startGenerator();
     }).catch(err => {
         console.log(err.stack);
         process.exit(1);

@@ -1,35 +1,79 @@
 /**
- * A version of $.get which works properly with native promises.
+ * A version of $.ajax which works properly with native promises.
  */
-function xhrGet(options) {
+function ajax(options) {
     return Promise.resolve($.get(options));
 }
 
+function toDateString(date) {
+    return date.toISOString().substr(0, 10);
+}
+
+/*
+Event flows:
+    page loads -> HLS start, tick
+    tick -> event list fetched (if out of date) -> timeOffset updated
+    user updates date box -> timestamp sent to /play, HLS restart
+    user clicks an event -> timestamp sent to /play, HLS restart
+    /play responds with time offset -> timeOffset updated
+    timeOffset updated -> date box updated (observer suppressed)
+*/
 function ViewModel() {
     var self = this;
     self.sidebarVisible = ko.observable()
     self.events = ko.observableArray();
     self.ready = ko.observable(false);
-    self.date = ko.observable(toDateTimeString(new Date()));
+    self.date = ko.observable();
+    self.timeOffset = ko.observable();
 
-    xhrGet('/events').then(function (eventsByThread) {
-        self.updateEvents(eventsByThread);
+    self.timeOffset.subscribe(function () {
+        try {
+            self.ignoreDateChange = true;
+            self.date(toDateString(self.getPlayerTime()));
+        }
+        finally {
+            self.ignoreDateChange = false;
+        }
     });
 
-    self.date.subscribe(function (dateTime) {
-        $.ajax({
-            type: 'PUT',
-            url: '/play/' + dateTime
-        });
-        self.startHls();
+    self.date.subscribe(function (dateString) {
+        if (!self.ignoreDateChange) {
+            // User edited the date box.
+            var globalOffset = new Date(dateString + ' 07:00:00').getTime();
+            if (!isNaN(globalOffset)) {
+                self.seek(globalOffset).then(function () {
+                    self.updateEvents();
+                });
+            }
+        }
     });
 
     self.startHls();
+    self.tick();
 }
 
-function toDateTimeString(date) {
-    return date.toISOString().substr(0, 10) + ' ' + date.toLocaleTimeString();
-}
+ViewModel.prototype.tick = function () {
+    var self = this;
+    var playerTime = self.getPlayerTime();
+    if (playerTime) {
+        var dateString = toDateString(playerTime);
+        if (dateString === self.date()) {
+            setTimeout(function () {
+                self.tick();
+            }, 1000);
+            return;
+        }
+    }
+    // Either there is no time offset, or the event list is out of date.
+    self.updateEvents().then(function () {
+        self.tick();
+    });
+};
+
+ViewModel.prototype.getPlayerTime = function () {
+    var timeOffset = this.timeOffset();
+    return (typeof timeOffset === 'number') ? new Date(new Date().getTime() - timeOffset) : null;
+};
 
 ViewModel.prototype.startHls = function () {
     if (Hls.isSupported()) {
@@ -40,6 +84,7 @@ ViewModel.prototype.startHls = function () {
         }
         var video = document.getElementById('video');
         var hls = new Hls({
+            manifestLoadingTimeout: 60000,
             manifestLoadingMaxRetry: 10,
             debug: true
         });
@@ -60,18 +105,33 @@ ViewModel.prototype.hideSidebar = function () {
     this.sidebarVisible(false);
 };
 
-ViewModel.prototype.updateEvents = function (eventsByThread) {
-    this.events(eventsByThread.main.map(function (event) {
-        return {
-            globalOffset: event.globalOffset,
-            time: new Date(event.globalOffset).toTimeString().substr(0, 8),
-            anim: event.anim
-        };
-    }));
+ViewModel.prototype.updateEvents = function () {
+    var self = this;
+    return ajax('/events').then(function (eventsByThread) {
+        self.events(eventsByThread.main.map(function (event) {
+            return {
+                globalOffset: event.globalOffset,
+                time: new Date(event.globalOffset).toTimeString().substr(0, 8),
+                anim: event.anim
+            };
+        }));
+        self.timeOffset(eventsByThread.timeOffset);
+    });
 };
 
 ViewModel.prototype.gotoEvent = function (event) {
-    this.date(toDateTimeString(new Date(event.globalOffset)));
+    this.seek(event.globalOffset);
+};
+
+ViewModel.prototype.seek = function (globalOffset) {
+    var self = this;
+    return ajax({
+        type: 'PUT',
+        url: '/play/' + globalOffset
+    }).then(function (response) {
+        self.timeOffset(response.timeOffset);
+        self.startHls();
+    });
 };
 
 ko.bindingHandlers.eventTable = {

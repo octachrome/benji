@@ -7,7 +7,7 @@ describe('Server', function () {
     let server;
 
     beforeEach(function () {
-        server = new Server();
+        server = new Server(new Date());
     });
 
     describe('#splitEvents', function () {
