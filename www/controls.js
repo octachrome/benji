@@ -27,13 +27,7 @@ function ViewModel() {
     self.timeOffset = ko.observable();
 
     self.timeOffset.subscribe(function () {
-        try {
-            self.ignoreDateChange = true;
-            self.date(toDateString(self.getPlayerTime()));
-        }
-        finally {
-            self.ignoreDateChange = false;
-        }
+        self.updateDateBox();
     });
 
     self.date.subscribe(function (dateString) {
@@ -52,6 +46,16 @@ function ViewModel() {
     self.tick();
 }
 
+ViewModel.prototype.updateDateBox = function () {
+        try {
+            this.ignoreDateChange = true;
+            this.date(toDateString(this.getPlayerTime()));
+        }
+        finally {
+            this.ignoreDateChange = false;
+        }
+};
+
 ViewModel.prototype.tick = function () {
     var self = this;
     var playerTime = self.getPlayerTime();
@@ -66,6 +70,7 @@ ViewModel.prototype.tick = function () {
     }
     // Either there is no time offset, or the event list is out of date.
     self.updateEvents().then(function () {
+        self.updateDateBox();
         self.tick();
     });
 };
@@ -107,6 +112,7 @@ ViewModel.prototype.hideSidebar = function () {
 
 ViewModel.prototype.updateEvents = function () {
     var self = this;
+    self.events([]);
     return ajax('/events').then(function (eventsByThread) {
         self.events(eventsByThread.main.map(function (event) {
             return {
@@ -163,6 +169,6 @@ ko.bindingHandlers.eventTable = {
 };
 
 $(function () {
-    var viewModel = new ViewModel();
-    ko.applyBindings(viewModel);
+    window.viewModel = new ViewModel();
+    ko.applyBindings(window.viewModel);
 });
