@@ -377,9 +377,9 @@ Server.prototype.ffmpeg = function (segment, done) {
         }
         else {
             let overlay = 0;
-            addFilter('[thread' + threads[0] + '] [thread' + threads[1] + '] overlay [overlay0]');
+            addFilter('[thread' + threads[0] + '] [thread' + threads[1] + '] overlay=eof_action=pass [overlay0]');
             for (let i = 2; i < threads.length; i++) {
-                addFilter('[overlay' + overlay + '] [thread' + threads[i] + '] overlay [overlay' + (++overlay) + ']');
+                addFilter('[overlay' + overlay + '] [thread' + threads[i] + '] overlay=eof_action=pass [overlay' + (++overlay) + ']');
             }
             videoMap = '[overlay' + overlay + ']';
         }
