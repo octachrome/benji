@@ -524,7 +524,8 @@ Server.prototype.getSegmentsForDate = function* (startTime) {
         this.eventsToSegments(
             this.splitEvents(
                 this.setDialogDurations(
-                    this.getCachedEvents(startTime).getGenerator()))));
+                    this.truncateEvents(
+                        this.getCachedEvents(startTime).getGenerator())))));
 };
 
 Server.prototype.getCachedEvents = function (startTime) {
@@ -664,15 +665,6 @@ Server.prototype.eventsToSegments = function* (eventStream) {
         if (!events) {
             eventsByThread.set(thread, events = []);
         }
-        // Check for overlapping events and truncate if needed.
-        let prevEvent = events[events.length - 1];
-        if (prevEvent && prevEvent.type === 'play' &&
-            (prevEvent.globalOffset + prevEvent.duration > event.globalOffset)) {
-            prevEvent.duration = event.segmentOffset - prevEvent.segmentOffset;
-            if (prevEvent.duration === 0) {
-                events.pop();
-            }
-        }
         if (event.type !== 'bgswitch') {
             events.push(event);
         }
@@ -681,6 +673,45 @@ Server.prototype.eventsToSegments = function* (eventStream) {
         startOffset: startOffset,
         eventsByThread: eventsByThread
     };
+};
+
+// Check for overlapping events and truncate if needed. Do this by preloading 20 events into the future.
+Server.prototype.truncateEvents = function* (eventStream) {
+    let preloadedEvents = [];
+    let done = false;
+    while (true) {
+        // Ensure the preloading pipeline is full.
+        while (!done && preloadedEvents.length < 20) {
+            let next = eventStream.next();
+            if (next.done) {
+                done = true;
+            }
+            else {
+                preloadedEvents.push(next.value);
+            }
+        }
+        if (preloadedEvents.length === 0) {
+            // Event stream is ended and there are no more preloaded events to emit.
+            break;
+        }
+        let event = preloadedEvents.shift();
+        if (event.type === 'play') {
+            // Search for a future event which may truncate this event.
+            for (let i = 0; i < preloadedEvents.length; i++) {
+                let futureEvent = preloadedEvents[i];
+                if (futureEvent.thread === event.thread) {
+                    if (event.globalOffset + event.duration > futureEvent.globalOffset) {
+                        event.duration = futureEvent.globalOffset - event.globalOffset;
+                    }
+                    break;
+                }
+            }
+        }
+        // Skip play events that have been truncated to zero length.
+        if (event.type !== 'play' || event.duration > 0) {
+            yield event;
+        }
+    }
 };
 
 Server.prototype.getParser = function () {

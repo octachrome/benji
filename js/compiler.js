@@ -347,13 +347,7 @@ Compiler.prototype.compile = function* (script, ctx) {
                     compiler: bgCompiler,
                     events: (function *() {
                         while (true) {
-                            // todo: revert
-                            for (let event of bgCompiler.compileRoot(bgScript)) {
-                                if (event.duration < 1000) {
-                                    // console.log(event);
-                                }
-                                yield event;
-                            }
+                            yield* bgCompiler.compileRoot(bgScript);
                         }
                     })()
                 };
