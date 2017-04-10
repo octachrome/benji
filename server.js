@@ -666,6 +666,16 @@ Server.prototype.eventsToSegments = function* (eventStream) {
             eventsByThread.set(thread, events = []);
         }
         if (event.type !== 'bgswitch') {
+            if (events.length === 0 && event.segmentOffset) {
+                // Pad to the first event on this thread with a blank animation.
+                events.push({
+                    type: 'play',
+                    anim: 'nothing',
+                    globalOffset: startOffset,
+                    segmentOffset: 0,
+                    duration: event.segmentOffset
+                });
+            }
             events.push(event);
         }
     }
