@@ -456,6 +456,9 @@ Server.prototype.createDialogFilter = function (event) {
         if (process.platform === 'win32') {
             filter += ":fontfile='c\\:/Windows/Fonts/arial.ttf'";
         }
+        else {
+            filter += ":fontfile='/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf'";
+        }
         filter += ":fontsize=30:fontcolor=" + (DIALOG_COLORS[event.pos] || 'black') +
             ":expansion=none:text='" + lines[i] + "'";
     }
@@ -521,10 +524,10 @@ Server.prototype.getSegments = function* (startTime) {
 
 Server.prototype.getSegmentsForDate = function* (startTime) {
     yield* this.simplifySegments(
-        this.eventsToSegments(
-            this.splitEvents(
-                this.setDialogDurations(
-                    this.truncateEvents(
+        this.truncateSegmentEvents(
+            this.eventsToSegments(
+                this.splitEvents(
+                    this.setDialogDurations(
                         this.getCachedEvents(startTime).getGenerator())))));
 };
 
@@ -555,9 +558,35 @@ Server.prototype.simplifySegments = function* (segments) {
                 }
             }
             // Remove empty threads.
-            if (events.length === 0 || (events.length === 1 &&
-                events[0].type === 'play' && events[0].anim === 'nothing')) {
+            if (!events.some(isAnimEvent)) {
                 segment.eventsByThread.delete(thread);
+            }
+        }
+        yield segment;
+    }
+};
+
+function isAnimEvent(event) {
+    return event.type === 'play' && event.anim !== 'nothing';
+}
+
+Server.prototype.truncateSegmentEvents = function* (segments) {
+    for (let segment of segments) {
+        for (let kv of segment.eventsByThread) {
+            let events = kv[1];
+            // Truncate overlapping events.
+            for (let i = 0; i < events.length - 1; i++) {
+                let event = events[i];
+                let nextEvent = events[i + 1];
+                if (event.type === 'play') {
+                    if (event.globalOffset + event.duration > nextEvent.globalOffset) {
+                        event.duration = nextEvent.globalOffset - event.globalOffset;
+                    }
+                    if (event.duration <= 0) {
+                        events.splice(i, 1);
+                        i--;
+                    }
+                }
             }
         }
         yield segment;
@@ -611,7 +640,24 @@ Server.prototype.splitEvents = function* (eventStream) {
             yield* processEvent(event);
         }
     }
+    // This ensures that future splits of events do not keep playing after they have been truncated.
+    // This pass is not perfect and will let some overlapping events through, so there is a second pass after segmentation.
+    function truncateQueuedEvents(event) {
+        for (var i = 0; i < eventQueue.length; i++) {
+            var queuedEvent = eventQueue[i];
+            if (queuedEvent.type === 'play' && event.thread === queuedEvent.thread) {
+                if (queuedEvent.globalOffset + queuedEvent.duration > event.globalOffset) {
+                    queuedEvent.duration = event.globalOffset - queuedEvent.globalOffset;
+                }
+                if (queuedEvent.duration <= 0) {
+                    eventQueue.splice(i, 1);
+                    i--;
+                }
+            }
+        }
+    }
     function* processEvent(event) {
+        truncateQueuedEvents(event);
         while (event.globalOffset > nextSegmentStart) {
             yield* nextSegment();
         }
@@ -643,10 +689,29 @@ Server.prototype.splitEvents = function* (eventStream) {
     }
 };
 
+function eventToString(event) {
+    var thread;
+    if (typeof event.thread === 'number') {
+        thread = event.thread;
+    }
+    else {
+        thread = '*';
+    }
+    var date = new Date(event.globalOffset);
+    var ms = date.getMilliseconds();
+    if (ms < 10) ms = '00' + ms;
+    else if (ms < 100) ms = '0' + ms;
+    return date.toLocaleTimeString() + ' ' + ms + ' ' +  thread + ' ' +
+        event.type + ' ' + event.anim + ' ' + event.duration / 1000
+}
+
 Server.prototype.eventsToSegments = function* (eventStream) {
     let eventsByThread = new Map();
     let startOffset = null;
     for (let event of eventStream) {
+        if (DEBUG) {
+            console.log(eventToString(event));
+        }
         if (startOffset === null) {
             let mediaSeq = Math.floor(event.globalOffset / SEGMENT_MS);
             startOffset = mediaSeq * SEGMENT_MS;
@@ -665,63 +730,22 @@ Server.prototype.eventsToSegments = function* (eventStream) {
         if (!events) {
             eventsByThread.set(thread, events = []);
         }
-        if (event.type !== 'bgswitch') {
-            if (events.length === 0 && event.segmentOffset) {
-                // Pad to the first event on this thread with a blank animation.
-                events.push({
-                    type: 'play',
-                    anim: 'nothing',
-                    globalOffset: startOffset,
-                    segmentOffset: 0,
-                    duration: event.segmentOffset
-                });
-            }
-            events.push(event);
+        if (events.length === 0 && event.type === 'play' && event.segmentOffset === 0) {
+            // Pad to the first event on this thread with a blank animation.
+            events.push({
+                type: 'play',
+                anim: 'nothing',
+                globalOffset: startOffset,
+                segmentOffset: 0,
+                duration: event.segmentOffset
+            });
         }
+        events.push(event);
     }
     yield {
         startOffset: startOffset,
         eventsByThread: eventsByThread
     };
-};
-
-// Check for overlapping events and truncate if needed. Do this by preloading 20 events into the future.
-Server.prototype.truncateEvents = function* (eventStream) {
-    let preloadedEvents = [];
-    let done = false;
-    while (true) {
-        // Ensure the preloading pipeline is full.
-        while (!done && preloadedEvents.length < 20) {
-            let next = eventStream.next();
-            if (next.done) {
-                done = true;
-            }
-            else {
-                preloadedEvents.push(next.value);
-            }
-        }
-        if (preloadedEvents.length === 0) {
-            // Event stream is ended and there are no more preloaded events to emit.
-            break;
-        }
-        let event = preloadedEvents.shift();
-        if (event.type === 'play') {
-            // Search for a future event which may truncate this event.
-            for (let i = 0; i < preloadedEvents.length; i++) {
-                let futureEvent = preloadedEvents[i];
-                if (futureEvent.thread === event.thread) {
-                    if (event.globalOffset + event.duration > futureEvent.globalOffset) {
-                        event.duration = futureEvent.globalOffset - event.globalOffset;
-                    }
-                    break;
-                }
-            }
-        }
-        // Skip play events that have been truncated to zero length.
-        if (event.type !== 'play' || event.duration > 0) {
-            yield event;
-        }
-    }
 };
 
 Server.prototype.getParser = function () {
