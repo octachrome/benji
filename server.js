@@ -730,14 +730,16 @@ Server.prototype.eventsToSegments = function* (eventStream) {
         if (!events) {
             eventsByThread.set(thread, events = []);
         }
-        if (events.length === 0 && event.type === 'play' && event.segmentOffset === 0) {
-            // Pad to the first event on this thread with a blank animation.
+        var lastEvent = events[events.length - 1];
+        var lastFinish = lastEvent ? lastEvent.segmentOffset + lastEvent.duration : 0;
+        if (event.segmentOffset > lastFinish) {
+            // Pad the gap before this event with a blank animation.
             events.push({
                 type: 'play',
                 anim: 'nothing',
-                globalOffset: startOffset,
-                segmentOffset: 0,
-                duration: event.segmentOffset
+                globalOffset: startOffset + lastFinish,
+                segmentOffset: lastFinish,
+                duration: event.segmentOffset - lastFinish
             });
         }
         events.push(event);
