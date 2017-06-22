@@ -465,7 +465,7 @@ Server.prototype.createDialogFilter = function (event) {
             ((event.segmentOffset + event.duration) / FRAME_MS - 1) + "')" +
             ":x=(main_w-text_w)/2:y=(760+" + (lineOffset + i) + "*text_h)";
         if (process.platform === 'win32') {
-            filter += ":fontfile='c\\:/Windows/Fonts/arial.ttf'";
+            filter += ":fontfile='c\\:/Windows/Fonts/courbd.ttf'";
         }
         else {
             filter += ":fontfile='/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf'";
