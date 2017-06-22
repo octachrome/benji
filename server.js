@@ -61,9 +61,20 @@ else {
     }
 }
 
+var dropboxDir;
+if (process.env.USER === 'chris') {
+    dropboxDir = '/home/chris/Dropbox/Benji';
+}
+else if (process.env.COMPUTERNAME === 'CULKS') {
+    dropboxDir = 'd:/dropbox/Benji';
+}
+else {
+    dropboxDir = 'e:/dropbox/Benji';
+}
+
 var argv = require('minimist')(process.argv.slice(2), {
     default: {
-        'dropbox': process.env.USER === 'chris' ? '/home/chris/Dropbox/Benji' : 'd:/dropbox/Benji'
+        'dropbox': dropboxDir
     },
     alias: {
         'd': 'dropbox'
