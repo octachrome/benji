@@ -222,6 +222,8 @@ The expression is a JavaScript expression and can use any standard JavaScript li
 - `maybe(<probability>)` - returns true with the given probability, or false (probability should be between 0 and 1)
 - `rand()` - returns a random number between 0 and 1
 - `randint(min, max)` - returns a random integer between min and max (inclusive)
+- `randomGenerator(seed)` - returns an object with all the above functions, but the random sequence is seeded with the given value
+- `now()` - returns the current animation time as a JavaScript `Date` object
 
 These functions are repeatably random - they will behave exactly the same way for a given script at a given date and time. Use them instead of JavaScript's `Math.random()`.
 

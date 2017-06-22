@@ -1,6 +1,6 @@
 'use strict';
 
-var Long, Chance, ms;
+var Long, Chance, ms, lodash;
 
 if (typeof dcodeIO !== 'undefined') {
     Long = dcodeIO.Long;
@@ -17,6 +17,7 @@ else {
     Long = require('long');
     Chance = require('chance');
     ms = require('ms');
+    lodash = require('lodash');
 }
 
 var mul = new Long(0xDEECE66D, 0x5);
@@ -52,25 +53,32 @@ function Compiler(date, chance, manifest, subs, includedScripts, vars, offset) {
     this.includedScripts = includedScripts || {};
     this.backgrounds = [];
     var compiler = this;
-    this.utils = {
-        pick: function (array) {
-            return compiler.chance.pick(array);
-        },
-        maybe: function (probability) {
-            return compiler.chance.bool({likelihood: probability});
-        },
-        rand: function () {
-            return compiler.chance.random();
-        },
-        randint: function (min, max) {
-            return compiler.chance.integer({min: min, max: max});
-        },
+    this.utils = lodash.extend({
         now: function () {
             return new Date(compiler.date.getTime() + compiler.offset);
+        },
+        randomGenerator: function (seed) {
+            return makeRandomFns(new Chance(seed));
         }
-    }
+    }, makeRandomFns(chance));
 }
 
+function makeRandomFns(chance) {
+    return {
+        pick: function (array) {
+            return chance.pick(array);
+        },
+        maybe: function (probability) {
+            return chance.bool({likelihood: probability});
+        },
+        rand: function () {
+            return chance.random();
+        },
+        randint: function (min, max) {
+            return chance.integer({min: min, max: max});
+        }
+    };
+}
 var useWorker = false;
 var worker;
 
