@@ -71,20 +71,26 @@ describe('Server', function () {
         });
     });
 
-    describe('#eventsToSegments', function () {
+    describe('#truncateSegmentEvents', function () {
         it('should truncate overlapping events', function () {
-            let segments = Array.from(server.eventsToSegments([
+            let segments = Array.from(server.truncateSegmentEvents([
                 {
-                    type: 'play',
-                    offset: 0,
-                    globalOffset: 0,
-                    duration: 100
-                },
-                {
-                    type: 'play',
-                    offset: 50,
-                    globalOffset: 50,
-                    duration: 100
+                    eventsByThread: new Map([
+                        ['main', [
+                            {
+                                type: 'play',
+                                offset: 0,
+                                globalOffset: 0,
+                                duration: 100
+                            },
+                            {
+                                type: 'play',
+                                offset: 50,
+                                globalOffset: 50,
+                                duration: 100
+                            }
+                        ]
+                    ]])
                 }
             ]));
             expect(segments[0].eventsByThread.get('main')).to.deep.equal([
@@ -92,34 +98,38 @@ describe('Server', function () {
                     type: 'play',
                     offset: 0,
                     globalOffset: 0,
-                    duration: 50,
-                    segmentOffset: 0
+                    duration: 50
                 },
                 {
                     type: 'play',
                     offset: 50,
                     globalOffset: 50,
-                    duration: 100,
-                    segmentOffset: 50
+                    duration: 100
                 }
             ]);
         });
 
         it('should discard zero-length anim events', function () {
-            let segments = Array.from(server.eventsToSegments([
+            let segments = Array.from(server.truncateSegmentEvents([
                 {
-                    type: 'play',
-                    anim: 'anim1',
-                    offset: 0,
-                    globalOffset: 0,
-                    duration: 100
-                },
-                {
-                    type: 'play',
-                    anim: 'anim2',
-                    offset: 0,
-                    globalOffset: 0,
-                    duration: 100
+                    eventsByThread: new Map([
+                        ['main', [
+                            {
+                                type: 'play',
+                                anim: 'anim1',
+                                offset: 0,
+                                globalOffset: 0,
+                                duration: 100
+                            },
+                            {
+                                type: 'play',
+                                anim: 'anim2',
+                                offset: 0,
+                                globalOffset: 0,
+                                duration: 100
+                            }
+                        ]
+                    ]])
                 }
             ]));
             expect(segments[0].eventsByThread.get('main')).to.deep.equal([
@@ -127,7 +137,6 @@ describe('Server', function () {
                     type: 'play',
                     anim: 'anim2',
                     offset: 0,
-                    segmentOffset: 0,
                     globalOffset: 0,
                     duration: 100
                 }
