@@ -1,5 +1,7 @@
-Writing Benji scripts
-=====================
+Benji
+=====
+
+Benji is a language for writing deterministically "random" animations.
 
 - A script is a list of statements, each of which is writen on its own line.
 - By default, statements are executed by the player in order, waiting for one to finish before starting the next.
@@ -203,7 +205,7 @@ Variables and conditions
 You can set variables and then use them to make decisions:
 
     :set x 0
-    :repeat 10 times
+    :while x < 10
         :if x % 2 == 0
             < {{x}} is an odd number!
             :play EvenNumberAnimation
@@ -227,7 +229,7 @@ The expression is a JavaScript expression and can use any standard JavaScript li
 
 These functions are repeatably random - they will behave exactly the same way for a given script at a given date and time. Use them instead of JavaScript's `Math.random()`.
 
-The `:if` statement accepts any valid JavaScript expression. The `:else` statement is optional.
+The `:if` and `:while` statements accept any valid JavaScript expression. The `:else` statement is optional after an `:if`.
 
 Variables can be interpolated into dialog using the `{{variable}}` syntax.
 
