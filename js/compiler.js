@@ -308,6 +308,11 @@ Compiler.prototype.compile = function* (script, ctx) {
                 yield* this.compile(script.else, ctx);
             }
         }
+        else if (script.cmd === 'while') {
+            while (this.evalExpr(script.args[0])) {
+                yield* this.compile(script.child, ctx);
+            }
+        }
         else if (script.cmd === 'sub') {
             this.subs[script.args[0]] = script.child;
         }

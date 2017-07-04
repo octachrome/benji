@@ -90,7 +90,7 @@
         // The line before the indent could also be part of the sequence.
         // (It could also be undefined.)
         var prev = cur.children[cur.children.length - 1];
-        if (prev && prev.type === 'Cmd' && /^(repeat|if|maybe|background|sub)/.test(prev.cmd)) {
+        if (prev && prev.type === 'Cmd' && /^(repeat|if|while|maybe|background|sub)/.test(prev.cmd)) {
           prev.child = seq;
         }
         else if (prev && prev.type === 'Cmd' && prev.cmd === 'else') {
@@ -198,7 +198,7 @@ Element = Simple / Struct
 Struct = Option
 
 // Simple elements
-Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / RepeatForever / Set / Maybe / If / Else / Background / Sub / Call / Include / Nothing
+Simple = Dialog / Play / Repeat / RepeatTime / RepeatUntil / RepeatForever / Set / Maybe / If / Else / While / Background / Sub / Call / Include / Nothing
 
 // An option that forms part of a choice between several elements
 Option = "|" element:Simple { return element.setOption(); }
@@ -227,6 +227,8 @@ Maybe = ":maybe" __ chance:[0-9]+ "%" { return mkCmd('maybe', parseInt(flatten(c
 Else = ":else" { return mkCmd('else'); }
 
 If = ":if" condition:Expression { return mkCmd('if', flatten(condition)); }
+
+While = ":while" condition:Expression { return mkCmd('while', flatten(condition)); }
 
 Nothing = ":nothing" { return mkCmd('nothing'); }
 
