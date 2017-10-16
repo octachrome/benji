@@ -33,6 +33,7 @@ var cacheControl = require('connect-cache-control');
 var sprintf = require('sprintf-js').sprintf;
 var doCompileScript = require('./js/compiler');
 var pack = require('./js/pack');
+var speech = require('./speech');
 var charm = require('charm')();
 charm.pipe(process.stdout);
 var eventCache = require('lru-cache')({
@@ -146,7 +147,7 @@ Server.prototype.startGenerator = function () {
             else if (segment.startOffset < currentTimestamp() + ACTIVE_SEGMENTS * SEGMENT_MS) {
                 // Segment should be generated.
                 let mediaSequence = segment.startOffset / SEGMENT_MS;
-                this.enqueue((done) => this.ffmpeg(segment, done));
+                this.enqueue(done => this.render(segment, done));
                 this.workingSet.set(mediaSequence, segment);
                 next = segmentStream.next();
             }
@@ -299,7 +300,28 @@ Server.prototype.seekTo = function (req, res, next) {
     }
 };
 
-Server.prototype.ffmpeg = function (segment, done) {
+Server.prototype.render = function (segment, done) {
+    this.getDialogAudioPaths(segment).then(dialogAudioPaths => {
+        this.ffmpeg(segment, dialogAudioPaths, done);
+    });
+};
+
+Server.prototype.getDialogAudioPaths = function (segment) {
+    const promises = [];
+    const paths = {};
+    for (let events of segment.eventsByThread.values()) {
+        for (let event of events) {
+            if (event.type === 'dialog') {
+                promises.push(speech.getSpeechFile(event.dialog).then(path => {
+                    paths[event.dialog] = path;
+                }));
+            }
+        }
+    }
+    return Promise.all(promises).then(() => paths);
+};
+
+Server.prototype.ffmpeg = function (segment, dialogAudioPaths, done) {
     let mediaSequence = segment.startOffset / SEGMENT_MS;
     let args = ['-y'];
     let filters = '';
@@ -311,10 +333,50 @@ Server.prototype.ffmpeg = function (segment, done) {
     }
     let outputStream = 0;
     let inputStream = 0;
-    let threads = [];
+    const athreads = [];
+    const vthreads = [];
     for (let thread of this.sortThreads(segment)) {
-        let firstOutputStream = outputStream;
-        let events = segment.eventsByThread.get(thread);
+        const events = segment.eventsByThread.get(thread);
+
+        if (AUDIO) {
+            const dialogStreams = [];
+            const dialogEvents = events.filter(event => event.type === 'dialog');
+            let d = 0;
+            for (let i = 0; i < dialogEvents.length; i++) {
+                const event = dialogEvents[i];
+                const lastEvent = i > 0 ? dialogEvents[i-1] : null;
+                const lastFinish = lastEvent ? lastEvent.segmentOffset + lastEvent.duration : 0;
+                if (event.segmentOffset > lastFinish) {
+                    // Insert silence
+                    const silenceLength = event.segmentOffset - lastFinish;
+                    const thisStream = outputStream++;
+                    addFilter('anullsrc, atrim=start=0:end=' + (silenceLength / 1000) + ', asetpts=N/SR/TB [dstream' + thisStream + ']');
+                    dialogStreams.push('dstream' + thisStream);
+                }
+                const startFrame = event.startFrame || 0;
+                const playFrames = event.duration / FRAME_MS;
+                const endFrame = startFrame + playFrames;
+                const audioPath = dialogAudioPaths[event.dialog];
+                const thisStream = outputStream++;
+                args.push('-i', audioPath);
+                const filter = '[' + (inputStream++) + ':0] atrim=start=' + (startFrame * FRAME_MS / 1000) +
+                    ':end=' + (endFrame * FRAME_MS / 1000) + ', asetpts=N/SR/TB [dstream' + thisStream + ']';
+                dialogStreams.push('dstream' + thisStream);
+                addFilter(filter);
+            }
+            if (dialogStreams.length) {
+                let filter = '';
+                for (let dialogStream of dialogStreams) {
+                    filter += '[' + dialogStream + '] ';
+                }
+                filter += 'concat=v=0:a=1:n=' + dialogStreams.length + ' ';
+                filter += '[dthread' + thread + '] ';
+                athreads.push('dthread' + thread);
+                addFilter(filter);
+            }
+        }
+
+        const firstOutputStream = outputStream;
         let dialogFilters = '';
         for (let event of events) {
             if (event.type === 'play') {
@@ -371,47 +433,48 @@ Server.prototype.ffmpeg = function (segment, done) {
             }
             filter += 'concat=v=' + (VIDEO ? 1 : 0) + ':a=' + (AUDIO ? 1 : 0) +':n=' + (outputStream - firstOutputStream) + ' ';
             if (VIDEO) {
-                filter += '[vthread' + thread + '] ';
-                addFilter('[vthread' + thread + '] pad=height=800:color=white' + dialogFilters + ' [thread' + thread + ']');
+                filter += '[tmp' + thread + '] ';
+                addFilter('[tmp' + thread + '] pad=height=800:color=white' + dialogFilters + ' [vthread' + thread + ']');
+                vthreads.push('vthread' + thread);
             }
             if (AUDIO) {
                 filter += '[athread' + thread + '] ';
+                athreads.push('athread' + thread);
             }
             addFilter(filter);
-            threads.push(thread);
         }
     }
     let videoMap, audioMap;
     if (VIDEO) {
-        if (threads.length === 1) {
-            videoMap = '[thread' + threads[0] + ']';
+        if (vthreads.length === 1) {
+            videoMap = '[' + vthreads[0] + ']';
         }
         else {
             let overlay = 0;
-            addFilter('[thread' + threads[0] + '] [thread' + threads[1] + '] overlay=eof_action=pass [overlay0]');
-            for (let i = 2; i < threads.length; i++) {
-                addFilter('[overlay' + overlay + '] [thread' + threads[i] + '] overlay=eof_action=pass [overlay' + (++overlay) + ']');
+            addFilter('[' + vthreads[0] + '] [' + vthreads[1] + '] overlay=eof_action=pass [overlay0]');
+            for (let i = 2; i < vthreads.length; i++) {
+                addFilter('[overlay' + overlay + '] [' + vthreads[i] + '] overlay=eof_action=pass [overlay' + (++overlay) + ']');
             }
             videoMap = '[overlay' + overlay + ']';
         }
     }
     if (AUDIO) {
-        if (threads.length === 1) {
-            audioMap = '[athread' + threads[0] + ']';
+        if (athreads.length === 1) {
+            audioMap = '[' + athreads[0] + ']';
         }
         else {
             let filter = '';
-            for (let i = 0; i < threads.length; i++) {
-                filter += '[athread' + threads[i] + '] ';
+            for (let i = 0; i < athreads.length; i++) {
+                filter += '[' + athreads[i] + '] ';
             }
-            filter += 'amerge=inputs=' + threads.length + ', pan=stereo|c0=c0';
+            filter += 'amerge=inputs=' + athreads.length + ', pan=stereo|c0=c0';
             // Left channel mix:
-            for (let i = 1; i < threads.length; i++) {
+            for (let i = 1; i < athreads.length; i++) {
                 filter += '+c' + (i * 2);
             }
             // Right channel mix:
             filter +='|c1=c1'
-            for (let i = 1; i < threads.length; i++) {
+            for (let i = 1; i < athreads.length; i++) {
                 filter += '+c' + (i * 2 + 1);
             }
             filter += ', volume=5 [audiomix]'
