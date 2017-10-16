@@ -312,8 +312,9 @@ Server.prototype.getDialogAudioPaths = function (segment) {
     for (let events of segment.eventsByThread.values()) {
         for (let event of events) {
             if (event.type === 'dialog') {
-                promises.push(speech.getSpeechFile(event.dialog).then(path => {
-                    paths[event.dialog] = path;
+                const voice = event.pos == 1 ? 'voices/cmu_us_slt.flitevox' : 'voices/cmu_us_aew.flitevox';
+                promises.push(speech.getSpeechFile(event.dialog, voice).then(path => {
+                    paths[event.dialog + ':' + event.pos] = path;
                 }));
             }
         }
@@ -356,7 +357,7 @@ Server.prototype.ffmpeg = function (segment, dialogAudioPaths, done) {
                 const startFrame = event.startFrame || 0;
                 const playFrames = event.duration / FRAME_MS;
                 const endFrame = startFrame + playFrames;
-                const audioPath = dialogAudioPaths[event.dialog];
+                const audioPath = dialogAudioPaths[event.dialog + ':' + event.pos];
                 const thisStream = outputStream++;
                 args.push('-i', audioPath);
                 const filter = '[' + (inputStream++) + ':0] atrim=start=' + (startFrame * FRAME_MS / 1000) +

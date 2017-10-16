@@ -24,7 +24,7 @@ var mul = new Long(0xDEECE66D, 0x5);
 var mask = new Long(0xFFFFFFFF, 0xFFFF);
 
 var FRAME_RATE = 12.5;
-var DIALOG_SPEED = .7; // animation frames per character of dialog
+var DIALOG_SPEED = 1; // animation frames per character of dialog
 
 // 48-bit random number, can be fully represented in a JavaScript number.
 function gen(input) {
