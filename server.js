@@ -360,8 +360,13 @@ Server.prototype.ffmpeg = function (segment, dialogAudioPaths, done) {
                 const audioPath = dialogAudioPaths[event.dialog + ':' + event.pos];
                 const thisStream = outputStream++;
                 args.push('-i', audioPath);
-                const filter = '[' + (inputStream++) + ':0] atrim=start=' + (startFrame * FRAME_MS / 1000) +
-                    ':end=' + (endFrame * FRAME_MS / 1000) + ', asetpts=N/SR/TB [dstream' + thisStream + ']';
+                const filter = '[' + (inputStream++) + ':0] ' +
+                    // The audio file may be shorter than the dialog duration - pad it
+                    'apad=whole_len=' + (event.duration * AUDIO_SAMPLE_RATE / 1000) + ', ' +
+                    // The dialog may be truncated - trim the audio
+                    'atrim=start=' + (startFrame * FRAME_MS / 1000) + ':end=' + (endFrame * FRAME_MS / 1000) + ', ' +
+                    // Reset sample numbers to start at zero
+                    'asetpts=N/SR/TB [dstream' + thisStream + ']';
                 dialogStreams.push('dstream' + thisStream);
                 addFilter(filter);
             }
