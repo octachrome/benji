@@ -96,7 +96,7 @@ function Server(startTime) {
     this.timeOffset = new Date().getTime() - startTime.getTime();
 }
 
-Server.prototype.startGenerator = function () {
+Server.prototype.startSegmentGenerator = function () {
     let timeOffset = this.timeOffset;
 
     let currentTimestamp = () => {
@@ -178,7 +178,7 @@ Server.prototype.startGenerator = function () {
         if (timeOffset !== this.timeOffset) {
             // A seek has occurred - restart the generator.
             setTimeout(() => {
-                this.startGenerator();
+                this.startSegmentGenerator();
             }, POLL_INTERVAL);
         }
         else if (!next.done) {
@@ -189,6 +189,55 @@ Server.prototype.startGenerator = function () {
     console.log('Running...');
     setTimeout(tick, POLL_INTERVAL);
 };
+
+Server.prototype.startEventGenerator = function () {
+    let timeOffset = this.timeOffset;
+
+    let currentTimestamp = () => {
+        return new Date().getTime() - timeOffset;
+    }
+
+    var eventStream = this.getEvents(new Date(currentTimestamp()));
+    let next = eventStream.next();
+
+    // There is a bug where we can't seek to a point in the past (relative to the true clock time)
+    console.log('Seeking...');
+    let lastLogged;
+    while (!next.done && next.value.globalOffset + SEGMENT_MS < Date.now()) {
+        next = eventStream.next();
+    }
+
+    let tick = () => {
+        while (!next.done) {
+            let event = next.value;
+            if (event.globalOffset < currentTimestamp() + ENCODE_MS) {
+                // Too late for this event.
+                next = eventStream.next();
+            }
+            else if (event.globalOffset < currentTimestamp() + ACTIVE_SEGMENTS * SEGMENT_MS) {
+                // Event should be emitted.
+                console.log(JSON.stringify(event));
+                next = eventStream.next();
+            }
+            else {
+                break;
+            }
+        }
+
+        if (timeOffset !== this.timeOffset) {
+            // A seek has occurred - restart the generator.
+            setTimeout(() => {
+                this.startEventGenerator();
+            }, POLL_INTERVAL);
+        }
+        else if (!next.done) {
+            setTimeout(tick, POLL_INTERVAL);
+        }
+    };
+
+    console.log('Running...');
+    setTimeout(tick, POLL_INTERVAL);
+}
 
 Server.prototype.enqueue = function (fn) {
     if (this.running < this.allowedWorkers) {
@@ -611,6 +660,39 @@ Server.prototype.getSegmentsForDate = function* (startTime) {
                         this.getCachedEvents(startTime).getGenerator())))));
 };
 
+Server.prototype.getEvents = function* (startTime) {
+    let compileTime = startTime;
+    let gen = this.getEventsForDate(compileTime);
+    let next = gen.next();
+    // Rewind until we get to the right date.
+    while (next.value.globalOffset > startTime) {
+        compileTime = new Date(compileTime.getTime() - DAY_MS);
+        gen = this.getEventsForDate(compileTime);
+        next = gen.next();
+    }
+    // Set up the script for the next date too.
+    compileTime = new Date(compileTime.getTime() + DAY_MS);
+    let tomorrowGen = this.getEventsForDate(compileTime);
+    let tomorrowNext = tomorrowGen.next();
+
+    while (true) {
+        if (next.done || tomorrowNext.value.globalOffset <= next.value.globalOffset) {
+            // Roll over to the next day.
+            gen = tomorrowGen;
+            next = tomorrowNext;
+            compileTime = new Date(compileTime.getTime() + DAY_MS);
+            tomorrowGen = this.getEventsForDate(compileTime);
+            tomorrowNext = tomorrowGen.next();
+        }
+        yield next.value;
+        next = gen.next();
+    }
+};
+
+Server.prototype.getEventsForDate = function* (startTime) {
+    yield* this.setDialogDurations(this.getCachedEvents(startTime).getGenerator());
+};
+
 Server.prototype.getCachedEvents = function (startTime) {
     let date = new Date(startTime);
     let cacheKey = date.toDateString();
@@ -976,9 +1058,10 @@ CachedEvents.prototype.transformNothings = function* (eventStream) {
 };
 
 if (require.main === module) {
-    var dateString = argv._.join(' ').trim();
+    const dateString = argv._.join(' ').trim();
+    let timestamp;
     if (dateString) {
-        var timestamp = new Date(dateString);
+        timestamp = new Date(dateString);
         if (isNaN(timestamp.getTime())) {
             console.error('Failed to parse timestamp: ' + dateString);
             process.exit(1);
@@ -987,12 +1070,13 @@ if (require.main === module) {
     else {
         timestamp = new Date();
     }
-    var server = new Server(timestamp);
+    const server = new Server(timestamp);
     server.startServer();
     pr.call(fs.emptyDir, Path.join(__dirname, SEGMENT_DIR)).then(() => {
         return server.load('script.benji');
     }).then(() => {
-        server.startGenerator();
+        // server.startSegmentGenerator();
+        server.startEventGenerator();
     }).catch(err => {
         console.log(err.stack);
         process.exit(1);
