@@ -4,18 +4,19 @@ import subprocess
 import itertools as it
 import os.path
 import av
+import constants
 from av.filter import Filter, Graph
-from fractions import Fraction
 
 import logging
 logging.basicConfig()
 #logging.getLogger('libav').setLevel(logging.DEBUG)
 
-AUDIO_RATE = 44100
-VIDEO_RATE = 12.5
+# [([v], [a]), ([v], [a])] = source.get_frames()
+
+# thread 1 - read from stdin, parse json, send events to source objects
+# thread 2 - poll source objects for next frame, join them up
+
 BIT_RATE = '500k'
-TIME_BASE = Fraction(1, AUDIO_RATE)
-PTS_PER_VFRAME = AUDIO_RATE / VIDEO_RATE
 
 DROPBOX = '/home/chris/Dropbox/Benji'
 V_BACKGROUND = os.path.join(DROPBOX, 'PNGSequences/Backgrounds/LivingRoom/LivingRoom-Background/LivingRoom-Background.png')
@@ -26,11 +27,9 @@ A_POGO1 = os.path.join(DROPBOX, 'audio/LivingRoom-Pogo1.aac')
 def iter_frames(source, stype):
     for container in source:
         stream = getattr(container.streams, stype)[0]
-        i = 0
         for packet in container.demux(stream):
             for frame in packet.decode():
                 yield frame
-                i += 1
 
 def open_container(fname):
     with av.open(fname, mode='r') as container:
@@ -111,9 +110,9 @@ def main():
         vbuf1.push(vframe1)
         vframe_out = vsink.pull()
 
-        vframe_out.time_base = TIME_BASE
+        vframe_out.time_base = constants.TIME_BASE
         vframe_out.pts = video_pts
-        video_pts += PTS_PER_VFRAME
+        video_pts += constants.ASAMPLES_PER_VFRAME
 
         for packet in out_vstream.encode(vframe_out):
             out_container.mux(packet)
@@ -127,7 +126,7 @@ def main():
             abuf1.push(aframe1)
             aframe_out = asink.pull()
 
-            aframe_out.time_base = TIME_BASE
+            aframe_out.time_base = constants.TIME_BASE
             aframe_out.pts = audio_pts
             audio_pts += aframe_out.samples
 

@@ -192,6 +192,7 @@ Server.prototype.startSegmentGenerator = function () {
 
 Server.prototype.startEventGenerator = function () {
     let timeOffset = this.timeOffset;
+    let seek = true;
 
     let currentTimestamp = () => {
         return new Date().getTime() - timeOffset;
@@ -216,6 +217,10 @@ Server.prototype.startEventGenerator = function () {
             }
             else if (event.globalOffset < currentTimestamp() + ACTIVE_SEGMENTS * SEGMENT_MS) {
                 // Event should be emitted.
+                if (seek) {
+                    console.log(JSON.stringify({type: 'seek', offset: next.value.offset, globalOffset: next.value.globalOffset}));
+                    seek = false;
+                }
                 console.log(JSON.stringify(event));
                 next = eventStream.next();
             }
