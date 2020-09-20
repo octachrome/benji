@@ -4,25 +4,21 @@ import subprocess
 import itertools as it
 import os.path
 import av
+import json
 import constants
+import source
 from av.filter import Filter, Graph
 
 import logging
 logging.basicConfig()
 #logging.getLogger('libav').setLevel(logging.DEBUG)
 
-# [([v], [a]), ([v], [a])] = source.get_frames()
-
-# thread 1 - read from stdin, parse json, send events to source objects
-# thread 2 - poll source objects for next frame, join them up
-
 BIT_RATE = '500k'
 
-DROPBOX = '/home/chris/Dropbox/Benji'
-V_BACKGROUND = os.path.join(DROPBOX, 'PNGSequences/Backgrounds/LivingRoom/LivingRoom-Background/LivingRoom-Background.png')
-V_DRINK_TEA = os.path.join(DROPBOX, 'PNGSequences/LivingRoom/LivingRoom-Centre-DrinkTea/LivingRoom-Centre-DrinkTea00%01d.png')
-A_DRINK_TEA = os.path.join(DROPBOX, 'audio/LivingRoom-Centre-DrinkTea.aac')
-A_POGO1 = os.path.join(DROPBOX, 'audio/LivingRoom-Pogo1.aac')
+def log_frames(it):
+    for frame in it:
+        print(frame)
+        yield frame
 
 def iter_frames(source, stype):
     for container in source:
@@ -61,10 +57,33 @@ def main():
     else:
         proc_args = ['ffplay', '-autoexit', '-']
 
-    vin0 = iter_frames(open_container(V_BACKGROUND), 'video')
-    vin1 = iter_frames(repeat_fn(open_container, V_DRINK_TEA), 'video')
-    ain0 = iter_frames(repeat_fn(open_container, A_DRINK_TEA), 'audio')
-    ain1 = iter_frames(repeat_fn(open_container, A_POGO1), 'audio')
+    ms = source.MultiSource()
+
+    lines = """
+{"type":"seek","offset":59042240,"globalOffset":1600615442240}
+{"type":"play","anim":"Vignette","offset":59042240,"globalOffset":1600615442240,"duration":64000,"thread":5}
+{"type":"play","offset":59042560,"globalOffset":1600615442560,"duration":6000,"thread":1,"anim":"nothing"}
+{"type":"play","anim":"LivingRoom-Background","offset":59044240,"globalOffset":1600615444240,"duration":6000,"thread":0}
+{"type":"dialog","dialog":"I've only been here in The Kalahari for two days, but it's been hard going.","pos":1,"offset":59047600,"globalOffset":1600615447600,"duration":6240}
+{"type":"play","anim":"LivingRoom-Sofa-WatchTV","offset":59047600,"globalOffset":1600615447600,"duration":6240}
+{"type":"play","anim":"LivingRoom-Background-Bird4","offset":59048560,"globalOffset":1600615448560,"duration":2320,"thread":1}
+{"type":"play","anim":"LivingRoom-Background","offset":59050240,"globalOffset":1600615450240,"duration":6000,"thread":0}
+{"type":"play","offset":59050880,"globalOffset":1600615450880,"duration":6000,"thread":1,"anim":"nothing"}
+{"type":"dialog","dialog":"I think it's time I drank my own urine...","pos":1,"offset":59053840,"globalOffset":1600615453840,"duration":3120}
+{"type":"play","anim":"LivingRoom-Sofa-WatchTV","offset":59053840,"globalOffset":1600615453840,"duration":3120}
+{"type":"play","anim":"LivingRoom-Background","offset":59056240,"globalOffset":1600615456240,"duration":6000,"thread":0}
+{"type":"play","anim":"LivingRoom-Background-Fly1","offset":59056880,"globalOffset":1600615456880,"duration":7200,"thread":1}
+{"type":"play","anim":"LivingRoom-Sofa-WatchTVScratch2","offset":59056960,"globalOffset":1600615456960,"duration":3120}
+{"type":"dialog","dialog":"Look! A caravan of traders!","pos":1,"offset":59060080,"globalOffset":1600615460080,"duration":3120}
+{"type":"play","anim":"LivingRoom-Sofa-WatchTV","offset":59060080,"globalOffset":1600615460080,"duration":3120}
+    """.splitlines()
+
+    seek = None
+    for line in lines:
+        line = line.strip()
+        if line:
+            event = json.loads(line)
+            ms.add_event(event)
 
     proc = subprocess.Popen(proc_args, stdin=subprocess.PIPE)
     out_container = av.open(NamedWriteable(proc.stdin, 'pipe'), mode='w', format='matroska')
@@ -78,21 +97,32 @@ def main():
 
     graph = Graph()
 
-    vbuf0 = graph.add_buffer(width=1280, height=720, format='rgba')
-    vbuf1 = graph.add_buffer(width=1280, height=720, format='rgba')
-    overlay = graph.add('overlay')
-    vbuf0.link_to(overlay)
-    vbuf1.link_to(overlay, input_idx=1)
+    vout = None
+    vbufs = []
+    for i in range(ms.nsources):
+        vbuf = graph.add_buffer(width=1280, height=720, format='rgba')
+        vbufs.append(vbuf)
+        if vout is None:
+            vout = vbuf
+        else:
+            # Overlays can only take 2 inputs, so chain them
+            overlay = graph.add('overlay')
+            vout.link_to(overlay)
+            vbuf.link_to(overlay, input_idx=1)
+            vout = overlay
+
     drawtext=graph.add('drawtext', 'fontfile=/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf:fontcolor=white:fontsize=24:x=10:y=10:text=%{pts\\:hms}')
-    overlay.link_to(drawtext)
+    vout.link_to(drawtext)
     vsink = graph.add('buffersink')
     drawtext.link_to(vsink)
 
-    abuf0 = graph.add_abuffer(sample_rate=44100, format='fltp', channels=2, layout='stereo')
-    abuf1 = graph.add_abuffer(sample_rate=44100, format='fltp', channels=2, layout='stereo')
-    amix = graph.add('amix', 'inputs=2')
-    abuf0.link_to(amix)
-    abuf1.link_to(amix, input_idx=1)
+    amix = graph.add('amix', f'inputs={ms.nsources}')
+    abufs = []
+    for i in range(ms.nsources):
+        abuf = graph.add_abuffer(sample_rate=44100, format='fltp', channels=2, layout='stereo')
+        abufs.append(abuf)
+        abuf.link_to(amix, input_idx=i)
+
     volume = graph.add('volume', 'volume=10')
     amix.link_to(volume)
     asink = graph.add('abuffersink')
@@ -100,38 +130,32 @@ def main():
 
     graph.configure()
 
-    audio_iter = it.zip_longest(ain0, ain1)
+    pts = 0
 
-    video_pts = 0
-    audio_pts = 0
+    while True:
+        for i, (vframe, aframe) in enumerate(ms.get_frames()):
+            vframe.time_base = constants.TIME_BASE
+            vframe.pts = pts
+            vbufs[i].push(vframe)
+            aframe.time_base = constants.TIME_BASE
+            aframe.pts = pts
+            abufs[i].push(aframe)
 
-    for vframe0, vframe1 in it.zip_longest(vin0, vin1):
-        vbuf0.push(vframe0)
-        vbuf1.push(vframe1)
         vframe_out = vsink.pull()
-
         vframe_out.time_base = constants.TIME_BASE
-        vframe_out.pts = video_pts
-        video_pts += constants.ASAMPLES_PER_VFRAME
+        vframe_out.pts = pts
 
         for packet in out_vstream.encode(vframe_out):
             out_container.mux(packet)
 
-        while audio_pts < video_pts:
-            try:
-                aframe0, aframe1 = next(audio_iter)
-            except StopIter:
-                break
-            abuf0.push(aframe0)
-            abuf1.push(aframe1)
-            aframe_out = asink.pull()
+        aframe_out = asink.pull()
+        aframe_out.time_base = constants.TIME_BASE
+        aframe_out.pts = pts
 
-            aframe_out.time_base = constants.TIME_BASE
-            aframe_out.pts = audio_pts
-            audio_pts += aframe_out.samples
+        for packet in out_astream.encode(aframe_out):
+            out_container.mux(packet)
 
-            for packet in out_astream.encode(aframe_out):
-                out_container.mux(packet)
+        pts += constants.ASAMPLES_PER_VFRAME
 
     # Flush streams (encode with no args)
     for packet in out_vstream.encode():
