@@ -3,6 +3,8 @@ import os.path
 import av
 import numpy as np
 import json
+import threading
+import queue
 
 # Pushing None into a filter buffer suspends it: it will repeat its last contents forever.
 # A filter buffer can start off suspended, having never seen any frames.
@@ -65,7 +67,6 @@ def gen_frames(fname, stype):
         while True:
             yield None
     else:
-        if stype != 'video': print(fname, stype)
         with av.open(fname, mode='r') as container:
             stream = getattr(container.streams, stype)[0]
             for packet in container.demux(stream):
@@ -87,6 +88,11 @@ class Source:
 
     def seek(self, global_offset):
         self.global_offset = global_offset
+        if self.active_event:
+            self.active_gen.close()
+            self.active_event = None
+            self.active_gen = None
+        self.event_queue = []
 
     def add_event(self, event):
         assert event['type'] == 'play', 'Only play events can be queued'
@@ -99,7 +105,7 @@ class Source:
         if self.active_gen:
             try:
                 next_frames = next(self.active_gen)
-            except StopIteration:
+            except (StopIteration, av.error.FileNotFoundError):
                 self.active_gen = None
                 self.active_event = None
         self.global_offset += constants.FRAME_LENGTH_MS
@@ -122,11 +128,18 @@ class Source:
             self.active_event = next_event
             self.active_gen = rpt_frame_tuples(anim['pattern'], anim.get('audio'))
 
+    def has_events(self):
+        return self.active_event or self.event_queue
+
+
+EOF = 'EOF'
+
 
 class MultiSource:
     def __init__(self, nsources=8):
         self.nsources = nsources
         self.sources = [Source(i) for i in range(nsources)]
+        self.event_queue = queue.Queue()
 
     def add_event(self, event):
         if event['type'] == 'seek':
@@ -139,4 +152,40 @@ class MultiSource:
             source.add_event(event)
 
     def get_frames(self):
+        self.poll_events()
         return [source.get_frames() for source in self.sources]
+
+    def poll_events(self):
+        while True:
+            # Block if all sources are waiting for events, to prevent the player from running ahead
+            should_block = not any(source.has_events() for source in self.sources)
+            try:
+                event = self.event_queue.get(should_block)
+            except queue.Empty:
+                break
+            # elif event == EOF:
+            #     raise Exception('End of event stream')
+            else:
+                self.add_event(event)
+
+    def start_reader(self, file):
+        reader = threading.Thread(target=self.reader_thread, name='EventReader', args=(file,))
+        reader.start()
+
+    def reader_thread(self, file):
+        while True:
+            line = file.readline()
+            if line == '':
+                # self.event_queue.put(EOF)
+                break
+            event = None
+            line = line.strip()
+            if line[0] == '{':
+                try:
+                    event = json.loads(line)
+                except Exception as e:
+                    pass
+            if event:
+                self.event_queue.put(event)
+            else:
+                print(line)

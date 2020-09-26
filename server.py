@@ -58,32 +58,7 @@ def main():
         proc_args = ['ffplay', '-autoexit', '-']
 
     ms = source.MultiSource()
-
-    lines = """
-{"type":"seek","offset":59042240,"globalOffset":1600615442240}
-{"type":"play","anim":"Vignette","offset":59042240,"globalOffset":1600615442240,"duration":64000,"thread":5}
-{"type":"play","offset":59042560,"globalOffset":1600615442560,"duration":6000,"thread":1,"anim":"nothing"}
-{"type":"play","anim":"LivingRoom-Background","offset":59044240,"globalOffset":1600615444240,"duration":6000,"thread":0}
-{"type":"dialog","dialog":"I've only been here in The Kalahari for two days, but it's been hard going.","pos":1,"offset":59047600,"globalOffset":1600615447600,"duration":6240}
-{"type":"play","anim":"LivingRoom-Sofa-WatchTV","offset":59047600,"globalOffset":1600615447600,"duration":6240}
-{"type":"play","anim":"LivingRoom-Background-Bird4","offset":59048560,"globalOffset":1600615448560,"duration":2320,"thread":1}
-{"type":"play","anim":"LivingRoom-Background","offset":59050240,"globalOffset":1600615450240,"duration":6000,"thread":0}
-{"type":"play","offset":59050880,"globalOffset":1600615450880,"duration":6000,"thread":1,"anim":"nothing"}
-{"type":"dialog","dialog":"I think it's time I drank my own urine...","pos":1,"offset":59053840,"globalOffset":1600615453840,"duration":3120}
-{"type":"play","anim":"LivingRoom-Sofa-WatchTV","offset":59053840,"globalOffset":1600615453840,"duration":3120}
-{"type":"play","anim":"LivingRoom-Background","offset":59056240,"globalOffset":1600615456240,"duration":6000,"thread":0}
-{"type":"play","anim":"LivingRoom-Background-Fly1","offset":59056880,"globalOffset":1600615456880,"duration":7200,"thread":1}
-{"type":"play","anim":"LivingRoom-Sofa-WatchTVScratch2","offset":59056960,"globalOffset":1600615456960,"duration":3120}
-{"type":"dialog","dialog":"Look! A caravan of traders!","pos":1,"offset":59060080,"globalOffset":1600615460080,"duration":3120}
-{"type":"play","anim":"LivingRoom-Sofa-WatchTV","offset":59060080,"globalOffset":1600615460080,"duration":3120}
-    """.splitlines()
-
-    seek = None
-    for line in lines:
-        line = line.strip()
-        if line:
-            event = json.loads(line)
-            ms.add_event(event)
+    ms.start_reader(sys.stdin)
 
     proc = subprocess.Popen(proc_args, stdin=subprocess.PIPE)
     out_container = av.open(NamedWriteable(proc.stdin, 'pipe'), mode='w', format='matroska')
