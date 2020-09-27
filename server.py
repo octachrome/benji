@@ -46,22 +46,26 @@ class NamedWriteable:
 
 
 def main():
-    if os.environ.get('TWITCH_KEY'):
-        proc_args = [
-            'ffmpeg', '-i', '-',
-            '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', '-g', '25', '-keyint_min', '12', '-preset', 'ultrafast',
-            '-b:v', BIT_RATE, '-minrate', BIT_RATE, '-maxrate', BIT_RATE, '-bufsize', BIT_RATE, '-threads', '1',
-            '-acodec', 'aac',
-            '-f', 'flv', 'rtmp://live-lhr03.twitch.tv/app/' + os.environ['TWITCH_KEY']
-        ]
+    if len(sys.argv) > 1 and sys.argv[1] == '-':
+        out_stream = sys.stdout.buffer
     else:
-        proc_args = ['ffplay', '-autoexit', '-']
+        if os.environ.get('TWITCH_KEY'):
+            proc_args = [
+                'ffmpeg', '-i', '-',
+                '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', '-g', '25', '-keyint_min', '12', '-preset', 'ultrafast',
+                '-b:v', BIT_RATE, '-minrate', BIT_RATE, '-maxrate', BIT_RATE, '-bufsize', BIT_RATE, '-threads', '1',
+                '-acodec', 'aac',
+                '-f', 'flv', 'rtmp://live-lhr03.twitch.tv/app/' + os.environ['TWITCH_KEY']
+            ]
+        else:
+            proc_args = ['ffplay', '-autoexit', '-']
+        proc = subprocess.Popen(proc_args, stdin=subprocess.PIPE) # , stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        out_stream = NamedWriteable(proc.stdin, 'pipe')
 
-    ms = source.MultiSource()
+    ms = source.MultiSource(nsources=7)
     ms.start_reader(sys.stdin)
 
-    proc = subprocess.Popen(proc_args, stdin=subprocess.PIPE)
-    out_container = av.open(NamedWriteable(proc.stdin, 'pipe'), mode='w', format='matroska')
+    out_container = av.open(out_stream, mode='w', format='matroska')
 
     out_vstream = out_container.add_stream('rawvideo', rate=12.5)
     out_vstream.width = 1280
@@ -72,22 +76,25 @@ def main():
 
     graph = Graph()
 
-    vout = None
+    vouts = []
     vbufs = []
     for i in range(ms.nsources):
         vbuf = graph.add_buffer(width=1280, height=720, format='rgba')
         vbufs.append(vbuf)
-        if vout is None:
-            vout = vbuf
-        else:
-            # Overlays can only take 2 inputs, so chain them
+        vouts.append(vbuf)
+    # Create a binary tree of overlay filters (each one can only take 2 inputs)
+    while len(vouts) > 1:
+        vnew = []
+        while len(vouts) > 1:
+            v1, v2 = vouts.pop(0), vouts.pop(0)
             overlay = graph.add('overlay')
-            vout.link_to(overlay)
-            vbuf.link_to(overlay, input_idx=1)
-            vout = overlay
+            v1.link_to(overlay)
+            v2.link_to(overlay, input_idx=1)
+            vnew.append(overlay)
+        vouts = vnew + vouts
 
     drawtext=graph.add('drawtext', 'fontfile=/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf:fontcolor=white:fontsize=24:x=10:y=10:text=%{pts\\:hms}')
-    vout.link_to(drawtext)
+    vouts[0].link_to(drawtext)
     vsink = graph.add('buffersink')
     drawtext.link_to(vsink)
 
@@ -109,6 +116,8 @@ def main():
 
     while True:
         for i, (vframe, aframe) in enumerate(ms.get_frames()):
+            if i >= len(vbufs):
+                break
             vframe.time_base = constants.TIME_BASE
             vframe.pts = pts
             vbufs[i].push(vframe)

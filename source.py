@@ -69,6 +69,7 @@ def gen_frames(fname, stype):
     else:
         with av.open(fname, mode='r') as container:
             stream = getattr(container.streams, stype)[0]
+            stream.thread_type = 'AUTO'
             for packet in container.demux(stream):
                 for frame in packet.decode():
                     yield frame
@@ -148,8 +149,9 @@ class MultiSource:
         elif event['type'] == 'play':
             # Main thread is always the last one
             thread = event.get('thread', self.nsources - 1)
-            source = self.sources[thread]
-            source.add_event(event)
+            if thread < self.nsources:
+                source = self.sources[thread]
+                source.add_event(event)
 
     def get_frames(self):
         self.poll_events()
