@@ -19,6 +19,7 @@ var PORT = 8080;
 var DEBUG = false;
 var VIDEO = true;
 var AUDIO = true;
+const FFMPEG = false;
 
 var fs = require('fs-extra');
 var url = require('url');
@@ -40,31 +41,36 @@ var eventCache = require('lru-cache')({
     max: 10
 });
 
-var ffmpegResult = child_process.spawnSync('ffmpeg', ['-version'], {encoding: 'utf8'});
-if (ffmpegResult.error) {
-    if (ffmpegResult.error.code === 'ENOENT') {
-        console.error('Could not find FFmpeg in path');
+if (FFMPEG) {
+    var ffmpegResult = child_process.spawnSync('ffmpeg', ['-version'], {encoding: 'utf8'});
+    if (ffmpegResult.error) {
+        if (ffmpegResult.error.code === 'ENOENT') {
+            console.error('Could not find FFmpeg in path');
+        }
+        else {
+            console.error(ffmpegResult.error.message);
+        }
+        process.exit(1);
+    }
+    var ffmpegVersion = ffmpegResult.stdout.match(/ffmpeg version ([^ ]+)/);
+    if (!ffmpegVersion) {
+        console.error('Cound not determine FFmpeg version');
+        process.exit(1);
     }
     else {
-        console.error(ffmpegResult.error.message);
-    }
-    process.exit(1);
-}
-var ffmpegVersion = ffmpegResult.stdout.match(/ffmpeg version ([^ ]+)/);
-if (!ffmpegVersion) {
-    console.error('Cound not determine FFmpeg version');
-    process.exit(1);
-}
-else {
-    if (!/3\.([2-9]\.|\d{2,}\.)|^[4-9]\.|^\d{2,}\.|^20(1[7-9]|[2-9]\d)/.test(ffmpegVersion[1])) {
-        console.error('FFmpeg 3.2 or later is needed, but found', ffmpegVersion[1]);
-        process.exit(1);
+        if (!/3\.([2-9]\.|\d{2,}\.)|^[4-9]\.|^\d{2,}\.|^20(1[7-9]|[2-9]\d)/.test(ffmpegVersion[1])) {
+            console.error('FFmpeg 3.2 or later is needed, but found', ffmpegVersion[1]);
+            process.exit(1);
+        }
     }
 }
 
 var dropboxDir;
 if (process.env.USER === 'chris') {
     dropboxDir = '/home/chris/Dropbox/Benji';
+}
+else if (process.env.USER === 'christopherbrown') {
+    dropboxDir = '/Users/christopherbrown/Dropbox/Benji';
 }
 else if (process.env.COMPUTERNAME === 'CULKS') {
     dropboxDir = 'd:/dropbox/Benji';
@@ -1080,8 +1086,12 @@ if (require.main === module) {
     pr.call(fs.emptyDir, Path.join(__dirname, SEGMENT_DIR)).then(() => {
         return server.load('script.benji');
     }).then(() => {
-        // server.startSegmentGenerator();
-        server.startEventGenerator();
+        if (FFMPEG) {
+            server.startSegmentGenerator();
+        }
+        else {
+            server.startEventGenerator();
+        }
     }).catch(err => {
         console.log(err.stack);
         process.exit(1);

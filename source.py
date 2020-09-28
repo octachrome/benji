@@ -167,8 +167,7 @@ class MultiSource:
                 break
             # elif event == EOF:
             #     raise Exception('End of event stream')
-            else:
-                self.add_event(event)
+            self.add_event(event)
 
     def start_reader(self, file):
         reader = threading.Thread(target=self.reader_thread, name='EventReader', args=(file,))

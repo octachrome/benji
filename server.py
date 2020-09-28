@@ -15,6 +15,14 @@ logging.basicConfig()
 
 BIT_RATE = '500k'
 
+if sys.platform == 'darwin':
+    FONTFILE = '/Library/Fonts/Arial Unicode.ttf'
+elif sys.platform == 'linux':
+    FONTFILE = '/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf'
+else:
+    FONTFILE = 'c\\:/Windows/Fonts/courbd.ttf'
+
+
 def log_frames(it):
     for frame in it:
         print(frame)
@@ -53,7 +61,7 @@ def main():
             proc_args = [
                 'ffmpeg', '-i', '-',
                 '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', '-g', '25', '-keyint_min', '12', '-preset', 'ultrafast',
-                '-b:v', BIT_RATE, '-minrate', BIT_RATE, '-maxrate', BIT_RATE, '-bufsize', BIT_RATE, '-threads', '1',
+                '-b:v', BIT_RATE, '-minrate', BIT_RATE, '-maxrate', BIT_RATE, '-bufsize', BIT_RATE,
                 '-acodec', 'aac',
                 '-f', 'flv', 'rtmp://live-lhr03.twitch.tv/app/' + os.environ['TWITCH_KEY']
             ]
@@ -70,7 +78,7 @@ def main():
     out_vstream = out_container.add_stream('rawvideo', rate=12.5)
     out_vstream.width = 1280
     out_vstream.height = 720
-    out_vstream.pix_fmt = 'yuv420p'
+    out_vstream.pix_fmt = 'rgba'
 
     out_astream = out_container.add_stream('pcm_s16le', rate=44100)
 
@@ -87,13 +95,13 @@ def main():
         vnew = []
         while len(vouts) > 1:
             v1, v2 = vouts.pop(0), vouts.pop(0)
-            overlay = graph.add('overlay')
+            overlay = graph.add('overlay', 'format=rgb')
             v1.link_to(overlay)
             v2.link_to(overlay, input_idx=1)
             vnew.append(overlay)
         vouts = vnew + vouts
 
-    drawtext=graph.add('drawtext', 'fontfile=/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf:fontcolor=white:fontsize=24:x=10:y=10:text=%{pts\\:hms}')
+    drawtext=graph.add('drawtext', f'fontfile={FONTFILE}:fontcolor=white:fontsize=24:x=10:y=10:text=%{{pts\\:hms}}')
     vouts[0].link_to(drawtext)
     vsink = graph.add('buffersink')
     drawtext.link_to(vsink)
