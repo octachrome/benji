@@ -11,17 +11,9 @@ from av.filter import Filter, Graph
 
 import logging
 logging.basicConfig()
-#logging.getLogger('libav').setLevel(logging.DEBUG)
+logging.getLogger('libav').setLevel(logging.ERROR)
 
 BIT_RATE = '500k'
-
-if sys.platform == 'darwin':
-    FONTFILE = '/Library/Fonts/Arial Unicode.ttf'
-elif sys.platform == 'linux':
-    FONTFILE = '/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf'
-else:
-    FONTFILE = 'c\\:/Windows/Fonts/courbd.ttf'
-
 
 def log_frames(it):
     for frame in it:
@@ -76,8 +68,8 @@ def main():
     out_container = av.open(out_stream, mode='w', format='matroska')
 
     out_vstream = out_container.add_stream('rawvideo', rate=12.5)
-    out_vstream.width = 1280
-    out_vstream.height = 720
+    out_vstream.width = constants.VIDEO_WIDTH
+    out_vstream.height = constants.VIDEO_HEIGHT
     out_vstream.pix_fmt = 'rgba'
 
     out_astream = out_container.add_stream('pcm_s16le', rate=44100)
@@ -87,9 +79,10 @@ def main():
     vouts = []
     vbufs = []
     for i in range(ms.nsources):
-        vbuf = graph.add_buffer(width=1280, height=720, format='rgba')
+        vbuf = graph.add_buffer(width=constants.VIDEO_WIDTH, height=constants.VIDEO_HEIGHT, format='rgba')
         vbufs.append(vbuf)
         vouts.append(vbuf)
+
     # Create a binary tree of overlay filters (each one can only take 2 inputs)
     while len(vouts) > 1:
         vnew = []
@@ -101,10 +94,14 @@ def main():
             vnew.append(overlay)
         vouts = vnew + vouts
 
-    drawtext=graph.add('drawtext', f'fontfile={FONTFILE}:fontcolor=white:fontsize=24:x=10:y=10:text=%{{pts\\:hms}}')
-    vouts[0].link_to(drawtext)
+    vbuf_dlg = graph.add_buffer(width=constants.VIDEO_WIDTH, height=constants.DIALOG_HEIGHT, format='rgba')
+
+    vstack = graph.add('vstack')
+    vouts[0].link_to(vstack)
+    vbuf_dlg.link_to(vstack, input_idx=1)
+
     vsink = graph.add('buffersink')
-    drawtext.link_to(vsink)
+    vstack.link_to(vsink)
 
     amix = graph.add('amix', f'inputs={ms.nsources}')
     abufs = []
@@ -123,7 +120,7 @@ def main():
     pts = 0
 
     while True:
-        for i, (vframe, aframe) in enumerate(ms.get_frames()):
+        for i, (vframe, aframe) in enumerate(ms.get_next_frame_tuples()):
             if i >= len(vbufs):
                 break
             vframe.time_base = constants.TIME_BASE
@@ -132,6 +129,10 @@ def main():
             aframe.time_base = constants.TIME_BASE
             aframe.pts = pts
             abufs[i].push(aframe)
+
+        dlg_frame = ms.get_next_dialog_frame()
+        dlg_frame.pts = pts
+        vbuf_dlg.push(dlg_frame)
 
         vframe_out = vsink.pull()
         vframe_out.time_base = constants.TIME_BASE
