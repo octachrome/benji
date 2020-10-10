@@ -9,14 +9,7 @@ import sys
 import textwrap
 from PIL import Image, ImageFont, ImageDraw
 
-if sys.platform == 'darwin':
-    FONTFILE = '/Library/Fonts/Arial Unicode.ttf'
-elif sys.platform == 'linux':
-    FONTFILE = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
-else:
-    FONTFILE = 'c\\:/Windows/Fonts/courbd.ttf'
-FONT = ImageFont.truetype(FONTFILE, 30)
-
+FONT = ImageFont.truetype(constants.FONTFILE, 30)
 
 # Pushing None into a filter buffer suspends it: it will repeat its last contents forever.
 # A filter buffer can start off suspended, having never seen any frames.

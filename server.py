@@ -100,8 +100,11 @@ def main():
     vouts[0].link_to(vstack)
     vbuf_dlg.link_to(vstack, input_idx=1)
 
+    drawtext = graph.add('drawtext', f'fontfile={constants.FONTFILE}:fontcolor=white:fontsize=24:x=10:y=10:text=%{{pts\\:hms}}')
+    vstack.link_to(drawtext)
+
     vsink = graph.add('buffersink')
-    vstack.link_to(vsink)
+    drawtext.link_to(vsink)
 
     amix = graph.add('amix', f'inputs={ms.nsources}')
     abufs = []

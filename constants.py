@@ -1,3 +1,4 @@
+import sys
 from fractions import Fraction
 
 AUDIO_RATE = 44100
@@ -18,3 +19,10 @@ ASAMPLES_PER_VFRAME = int(AUDIO_RATE / VIDEO_RATE)
 DIALOG_PER_LINE = 60
 DIALOG_HEIGHT = 80
 DIALOG_COLORS = [(0x33, 0x33, 0x99), (0x99, 0x33, 0x33)]
+
+if sys.platform == 'darwin':
+    FONTFILE = '/Library/Fonts/Arial Unicode.ttf'
+elif sys.platform == 'linux':
+    FONTFILE = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+else:
+    FONTFILE = 'c:/Windows/Fonts/courbd.ttf'
