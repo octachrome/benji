@@ -12,7 +12,7 @@ from PIL import Image, ImageFont, ImageDraw
 if sys.platform == 'darwin':
     FONTFILE = '/Library/Fonts/Arial Unicode.ttf'
 elif sys.platform == 'linux':
-    FONTFILE = '/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf'
+    FONTFILE = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
 else:
     FONTFILE = 'c\\:/Windows/Fonts/courbd.ttf'
 FONT = ImageFont.truetype(FONTFILE, 30)
@@ -114,7 +114,7 @@ class Source:
     def get_next_frame_tuple(self):
         assert self.global_offset is not None, 'Source has not been initialized'
         self.update_active_event()
-        next_frame_tuple = (BLANK_VIDEO_FRAME, BLANK_AUDIO_FRAME)
+        next_frame_tuple = self.get_blank_tuple()
         if self.active_gen:
             try:
                 next_frame_tuple = next(self.active_gen)
@@ -123,6 +123,9 @@ class Source:
                 self.active_event = None
         self.global_offset += constants.FRAME_LENGTH_MS
         return next_frame_tuple
+
+    def get_blank_tuple(self):
+        return (BLANK_VIDEO_FRAME, BLANK_AUDIO_FRAME)
 
     def update_active_event(self):
         if self.active_event and (
@@ -157,6 +160,19 @@ class VideoSource(Source):
 
 
 class DialogSource(Source):
+    def __init__(self):
+        super().__init__()
+        image = Image.new("RGBA", (constants.VIDEO_WIDTH, constants.DIALOG_HEIGHT), (255, 255, 255))
+        self.empty_dialog_frame = self.image_to_frame(image)
+
+    def get_blank_tuple(self):
+        return (self.empty_dialog_frame, BLANK_AUDIO_FRAME)
+
+    def image_to_frame(self, image):
+        data = np.array(image.getdata(), dtype=constants.VIDEO_DTYPE).reshape(
+            constants.DIALOG_HEIGHT, constants.VIDEO_WIDTH, 4)
+        return av.video.frame.VideoFrame.from_ndarray(data, format=constants.VIDEO_FORMAT)
+
     def get_generator(self, event):
         lines = textwrap.wrap(event['dialog'], constants.DIALOG_PER_LINE)
         lineOffset = -len(lines) / 2;
@@ -172,9 +188,7 @@ class DialogSource(Source):
             y = (constants.DIALOG_HEIGHT / 2) + (lineOffset + i) * text_h
             draw.text((x,y), line, color, font=FONT)
 
-        data = np.array(image.getdata(), dtype=constants.VIDEO_DTYPE).reshape(
-            constants.DIALOG_HEIGHT, constants.VIDEO_WIDTH, 4)
-        frame = av.video.frame.VideoFrame.from_ndarray(data, format=constants.VIDEO_FORMAT)
+        frame = self.image_to_frame(image)
         while True:
             yield (frame, BLANK_AUDIO_FRAME)
 
