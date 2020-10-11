@@ -58,21 +58,25 @@ def main():
                 '-f', 'flv', 'rtmp://live-lhr03.twitch.tv/app/' + os.environ['TWITCH_KEY']
             ]
         else:
-            proc_args = ['ffplay', '-autoexit', '-']
+            escaped_fontfile = constants.FONTFILE.replace(':', '\\:')
+            proc_args = [
+                'ffplay', '-autoexit', '-',
+                # '-vf', f'drawtext=fontfile={escaped_fontfile}:fontcolor=white:fontsize=24:x=10:y=40:timecode=00\\\\:00\\\\:00\\\\:00:rate={constants.VIDEO_RATE}',
+            ]
         proc = subprocess.Popen(proc_args, stdin=subprocess.PIPE) # , stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
         out_stream = NamedWriteable(proc.stdin, 'pipe')
 
     ms = source.MultiSource(nsources=7)
     ms.start_reader(sys.stdin)
 
-    out_container = av.open(out_stream, mode='w', format='matroska')
+    out_container = av.open(out_stream, mode='w', format='avi')
 
-    out_vstream = out_container.add_stream('rawvideo', rate=12.5)
+    out_vstream = out_container.add_stream('rawvideo', rate=constants.VIDEO_RATE)
     out_vstream.width = constants.VIDEO_WIDTH
     out_vstream.height = constants.VIDEO_HEIGHT
     out_vstream.pix_fmt = 'rgba'
 
-    out_astream = out_container.add_stream('pcm_s16le', rate=44100)
+    out_astream = out_container.add_stream('pcm_s16le', rate=constants.AUDIO_RATE, layout=constants.AUDIO_LAYOUT)
 
     graph = Graph()
 
@@ -100,7 +104,9 @@ def main():
     vouts[0].link_to(vstack)
     vbuf_dlg.link_to(vstack, input_idx=1)
 
-    drawtext = graph.add('drawtext', f'fontfile={constants.FONTFILE}:fontcolor=white:fontsize=24:x=10:y=10:text=%{{pts\\:hms}}')
+    escaped_fontfile = constants.FONTFILE.replace(':', '\\:')
+    drawtext = graph.add('drawtext', f'fontfile={escaped_fontfile}:' +
+        f'fontcolor=white:fontsize=24:x=10:y=10:timecode=00\\:00\\:00\\:00:rate={constants.VIDEO_RATE}')
     vstack.link_to(drawtext)
 
     vsink = graph.add('buffersink')
@@ -109,7 +115,11 @@ def main():
     amix = graph.add('amix', f'inputs={ms.nsources}')
     abufs = []
     for i in range(ms.nsources):
-        abuf = graph.add_abuffer(sample_rate=44100, format='fltp', channels=2, layout='stereo')
+        abuf = graph.add_abuffer(
+            sample_rate=constants.AUDIO_RATE,
+            format=constants.AUDIO_FORMAT,
+            channels=2,
+            layout=constants.AUDIO_LAYOUT)
         abufs.append(abuf)
         abuf.link_to(amix, input_idx=i)
 
@@ -126,32 +136,28 @@ def main():
         for i, (vframe, aframe) in enumerate(ms.get_next_frame_tuples()):
             if i >= len(vbufs):
                 break
-            vframe.time_base = constants.TIME_BASE
-            vframe.pts = pts
+            vframe.pts = None
             vbufs[i].push(vframe)
-            aframe.time_base = constants.TIME_BASE
-            aframe.pts = pts
+            aframe.pts = None
             abufs[i].push(aframe)
 
         dlg_frame = ms.get_next_dialog_frame()
-        dlg_frame.pts = pts
+        dlg_frame.pts = None
         vbuf_dlg.push(dlg_frame)
 
         vframe_out = vsink.pull()
-        vframe_out.time_base = constants.TIME_BASE
-        vframe_out.pts = pts
+        vframe_out.pts = None
 
         for packet in out_vstream.encode(vframe_out):
             out_container.mux(packet)
 
         aframe_out = asink.pull()
-        aframe_out.time_base = constants.TIME_BASE
-        aframe_out.pts = pts
+        aframe_out.pts = None
 
         for packet in out_astream.encode(aframe_out):
             out_container.mux(packet)
 
-        pts += constants.ASAMPLES_PER_VFRAME
+        pts += 1
 
     # Flush streams (encode with no args)
     for packet in out_vstream.encode():
