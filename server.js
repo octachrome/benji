@@ -207,10 +207,9 @@ Server.prototype.startEventGenerator = function () {
     var eventStream = this.getEvents(new Date(currentTimestamp()));
     let next = eventStream.next();
 
-    // There is a bug where we can't seek to a point in the past (relative to the true clock time)
     console.log('Seeking...');
     let lastLogged;
-    while (!next.done && next.value.globalOffset + SEGMENT_MS < Date.now()) {
+    while (!next.done && next.value.globalOffset + SEGMENT_MS < currentTimestamp()) {
         next = eventStream.next();
     }
 
