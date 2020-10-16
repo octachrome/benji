@@ -51,7 +51,7 @@ def main():
     else:
         if os.environ.get('TWITCH_KEY'):
             proc_args = [
-                'ffmpeg', '-i', '-',
+                'ffmpeg', '-re', '-i', '-',
                 '-vcodec', 'libx264', '-pix_fmt', 'yuv420p', '-g', '25', '-keyint_min', '12', '-preset', 'ultrafast',
                 '-b:v', BIT_RATE, '-minrate', BIT_RATE, '-maxrate', BIT_RATE, '-bufsize', BIT_RATE,
                 '-acodec', 'aac',
