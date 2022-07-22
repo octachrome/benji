@@ -39,8 +39,6 @@ NO_AUDIO_SAMPLES = np.array([[], []], dtype=constants.AUDIO_DTYPE)
 def gen_frame_tuples(video_fname, audio_fname):
     video_gen = gen_frames(video_fname, 'video')
     audio_gen = gen_frames(audio_fname, 'audio')
-    audio_format = constants.AUDIO_FORMAT
-    audio_layout = constants.AUDIO_LAYOUT
     audio_rate = constants.AUDIO_RATE
     audio_buffer = NO_AUDIO_SAMPLES
     for vframe in video_gen:

@@ -83,8 +83,10 @@ var argv = require('minimist')(process.argv.slice(2), {
     default: {
         'dropbox': dropboxDir
     },
+    boolean: ['ignoreMissing'],
     alias: {
-        'd': 'dropbox'
+        'd': 'dropbox',
+        'i': 'ignoreMissing'
     }
 });
 
@@ -996,7 +998,7 @@ function CachedEvents(startTime, server) {
     this.server = server;
     this.events = [];
     this.done = false;
-    this.generator = this.transformNothings(doCompileScript(this.startTime, this.server.manifest, this.server.root, this.server.scripts));
+    this.generator = this.transformNothings(doCompileScript(this.startTime, this.server.manifest, this.server.root, this.server.scripts, argv.ignoreMissing));
 };
 
 CachedEvents.prototype.getGenerator = function* () {

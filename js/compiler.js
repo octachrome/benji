@@ -42,7 +42,7 @@ function dateSeed(date) {
     return seed;
 }
 
-function Compiler(date, chance, manifest, subs, includedScripts, vars, offset) {
+function Compiler(date, chance, manifest, subs, includedScripts, vars, offset, ignoreMissing) {
     // 7am in millis
     this.offset = offset || ms('7 hours');
     this.date = date;
@@ -52,6 +52,7 @@ function Compiler(date, chance, manifest, subs, includedScripts, vars, offset) {
     this.subs = subs || {};
     this.includedScripts = includedScripts || {};
     this.backgrounds = [];
+    this.ignoreMissing = ignoreMissing;
     var compiler = this;
     this.utils = lodash.extend({
         now: function () {
@@ -112,13 +113,13 @@ function compileScript(date, manifest, script, includedScripts) {
     }
 }
 
-function* doCompileScript(date, manifest, script, includedScripts) {
+function* doCompileScript(date, manifest, script, includedScripts, ignoreMissing) {
     // Find midnight GMT on the date.
     date = new Date(date.toDateString());
     var seed = dateSeed(date);
     var chance = new Chance(seed);
 
-    var compiler = new Compiler(date, chance, manifest, null, includedScripts);
+    var compiler = new Compiler(date, chance, manifest, null, includedScripts, null, null, ignoreMissing);
     yield* compiler.compileRoot(script);
 }
 
@@ -355,7 +356,7 @@ Compiler.prototype.compile = function* (script, ctx) {
                         child: bgScript
                     };
                 }
-                var bgCompiler = new Compiler(this.date, this.chance, this.manifest, this.subs, this.includedScripts, this.vars, this.offset);
+                var bgCompiler = new Compiler(this.date, this.chance, this.manifest, this.subs, this.includedScripts, this.vars, this.offset, this.ignoreMissing);
                 this.backgrounds[thread] = {
                     compiler: bgCompiler,
                     events: (function *() {
@@ -496,8 +497,12 @@ Compiler.prototype.addAnimEvents = function* (animName, frames) {
     var anim = this.manifest[animName];
     if (!anim) {
         if (animName) {
-            // This branch processes 'nothing' commands too.
-            console.error('Skipped unknown animation ' + animName);
+            if (this.ignoreMissing) {
+                // This branch processes 'nothing' commands too.
+                console.error('Skipped unknown animation ' + animName);
+            } else {
+                throw new Error('Unknown animation ' + animName);
+            }
         }
         yield this.addEvent({
             type: 'nothing',
