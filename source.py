@@ -121,15 +121,16 @@ class Source:
         return (BLANK_VIDEO_FRAME, BLANK_AUDIO_FRAME)
 
     def update_active_event(self):
-        if self.active_event and (
-            self.global_offset >= self.active_event['globalOffset'] + self.active_event['duration']):
-            self.active_gen.close()
-            self.active_event = None
-            self.active_gen = None
-
         next_event = None
         while self.event_queue and self.global_offset >= self.event_queue[0]['globalOffset']:
             next_event = self.event_queue.pop(0)
+
+        if self.active_event and (
+            (self.global_offset >= self.active_event['globalOffset'] + self.active_event['duration']) or
+            (next_event is not None)):
+            self.active_gen.close()
+            self.active_event = None
+            self.active_gen = None
 
         if next_event and self.should_process(next_event) and (
             self.global_offset < next_event['globalOffset'] + next_event['duration']):
