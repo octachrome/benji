@@ -175,7 +175,9 @@ class DialogSource(Source):
         draw.fontmode = "L"
 
         for i, line in enumerate(lines):
-            text_w, text_h = FONT.getsize(line)
+            left, top, right, bottom = FONT.getbbox(line)
+            text_w = right - left
+            text_h = bottom - top
             x = (constants.VIDEO_WIDTH - text_w) / 2
             y = (constants.DIALOG_HEIGHT / 2) + (lineOffset + i) * text_h
             draw.text((x,y), line, color, font=FONT)

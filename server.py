@@ -7,11 +7,15 @@ import av
 import json
 import constants
 import source
+# On macOS, build av from source to make sure ffmpeg has required filters:
+# brew install ffmpeg pkg-config
+# pip install av --no-binary av
 from av.filter import Filter, Graph
 
 import logging
 logging.basicConfig()
 logging.getLogger('libav').setLevel(logging.ERROR)
+#logging.getLogger('libav').setLevel(logging.DEBUG)
 
 BIT_RATE = '500k'
 
@@ -37,6 +41,8 @@ def repeat_fn(fn, *args):
             yield i
 
 class NamedWriteable:
+    """Adds a name property to a file-like object, just so ffmpeg can use this in error messages
+    """
     def __init__(self, wrapped, name):
         self.name = name
         self.wrapped = wrapped
@@ -83,7 +89,7 @@ def main():
     vouts = []
     vbufs = []
     for i in range(ms.nsources):
-        vbuf = graph.add_buffer(width=constants.VIDEO_WIDTH, height=constants.VIDEO_HEIGHT, format='rgba')
+        vbuf = graph.add_buffer(width=constants.VIDEO_WIDTH, height=constants.VIDEO_HEIGHT, format='rgba', time_base=0.001)
         vbufs.append(vbuf)
         vouts.append(vbuf)
 
@@ -98,7 +104,7 @@ def main():
             vnew.append(overlay)
         vouts = vnew + vouts
 
-    vbuf_dlg = graph.add_buffer(width=constants.VIDEO_WIDTH, height=constants.DIALOG_HEIGHT, format='rgba')
+    vbuf_dlg = graph.add_buffer(width=constants.VIDEO_WIDTH, height=constants.DIALOG_HEIGHT, format='rgba', time_base=0.001)
 
     vstack = graph.add('vstack')
     vouts[0].link_to(vstack)
@@ -149,6 +155,9 @@ def main():
         vframe_out.pts = None
 
         for packet in out_vstream.encode(vframe_out):
+            # Let ffmpeg assign timestamps, because the encoder returns bad data
+            packet.pts = None
+            packet.dts = None
             out_container.mux(packet)
 
         aframe_out = asink.pull()

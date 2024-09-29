@@ -66,11 +66,8 @@ if (FFMPEG) {
 }
 
 var dropboxDir;
-if (process.env.USER === 'chris') {
-    dropboxDir = '/home/chris/Dropbox/Benji';
-}
-else if (process.env.USER === 'christopherbrown') {
-    dropboxDir = '/Users/christopherbrown/Dropbox/Benji';
+if (process.env.HOME && fs.existsSync(process.env.HOME + '/Dropbox/Benji')) {
+    dropboxDir = process.env.HOME + '/Dropbox/Benji';
 }
 else if (process.env.COMPUTERNAME === 'CULKS') {
     dropboxDir = 'd:/dropbox/Benji';
@@ -676,6 +673,9 @@ Server.prototype.getEvents = function* (startTime) {
     let compileTime = startTime;
     let gen = this.getEventsForDate(compileTime);
     let next = gen.next();
+    if (!next.value) {
+        throw new Error('Script has no events!');
+    }
     // Rewind until we get to the right date.
     while (next.value.globalOffset > startTime) {
         compileTime = new Date(compileTime.getTime() - DAY_MS);
