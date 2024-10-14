@@ -2,6 +2,8 @@
 
 var Long, Chance, ms, lodash;
 
+var debug = false;
+
 if (typeof dcodeIO !== 'undefined') {
     Long = dcodeIO.Long;
 }
@@ -265,6 +267,9 @@ Compiler.prototype.compile = function* (script, ctx) {
             else {
                 this.vars[varName] = this.evalExpr(value);
             }
+            if (debug) {
+                console.log('set', varName, 'to', this.vars[varName]);
+            }
         }
         else if (script.cmd === 'play') {
             var anim = script.args[0];
@@ -342,30 +347,24 @@ Compiler.prototype.compile = function* (script, ctx) {
                 type: 'bgswitch',
                 thread: thread
             });
-            let simpleCmd = this.getSimpleCommand(script.child);
-            if (simpleCmd && simpleCmd.cmd === 'nothing') {
-                delete this.backgrounds[thread];
-            }
-            else {
-                let bgScript = script.child;
-                // Background scripts get repeated forever.
-                if (bgScript.cmd !== 'repeat_forever') {
-                    bgScript = {
-                        type: 'Cmd',
-                        cmd: 'repeat_forever',
-                        child: bgScript
-                    };
-                }
-                var bgCompiler = new Compiler(this.date, this.chance, this.manifest, this.subs, this.includedScripts, this.vars, this.offset, this.ignoreMissing);
-                this.backgrounds[thread] = {
-                    compiler: bgCompiler,
-                    events: (function *() {
-                        while (true) {
-                            yield* bgCompiler.compileRoot(bgScript);
-                        }
-                    })()
+            let bgScript = script.child;
+            // Background scripts get repeated forever.
+            if (bgScript.cmd !== 'repeat_forever') {
+                bgScript = {
+                    type: 'Cmd',
+                    cmd: 'repeat_forever',
+                    child: bgScript
                 };
             }
+            var bgCompiler = new Compiler(this.date, this.chance, this.manifest, this.subs, this.includedScripts, this.vars, this.offset, this.ignoreMissing);
+            this.backgrounds[thread] = {
+                compiler: bgCompiler,
+                events: (function *() {
+                    while (true) {
+                        yield* bgCompiler.compileRoot(bgScript);
+                    }
+                })()
+            };
         }
         else if (script.cmd === 'nothing') {
             yield this.addEvent({

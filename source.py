@@ -113,6 +113,8 @@ class Source:
                 self.active_gen = None
                 self.active_event = None
         self.global_offset += constants.FRAME_LENGTH_MS
+        if len(next_frame_tuple) == 2 and next_frame_tuple[0].format.name != 'rgba':
+            print('Unexpected format:', next_frame_tuple[0], 'from', self.active_event)
         return next_frame_tuple
 
     def get_blank_tuple(self):
