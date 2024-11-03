@@ -65,16 +65,12 @@ if (FFMPEG) {
     }
 }
 
-var dropboxDir;
-if (process.env.HOME && fs.existsSync(process.env.HOME + '/Dropbox/Benji')) {
-    dropboxDir = process.env.HOME + '/Dropbox/Benji';
-}
-else if (process.env.COMPUTERNAME === 'CULKS') {
-    dropboxDir = 'd:/dropbox/Benji';
-}
-else {
-    dropboxDir = 'e:/dropbox/Benji';
-}
+var dropboxDir = [
+    process.env.HOME + '/Dropbox/Benji',
+    'd:/dropbox/Benji',
+    'e:/dropbox/Benji',
+    '/Volumes/Untitled/benji'
+].find(dir => fs.existsSync(dir));
 
 var argv = require('minimist')(process.argv.slice(2), {
     default: {

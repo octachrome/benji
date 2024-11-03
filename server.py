@@ -1,16 +1,14 @@
 import os
 import sys
 import subprocess
-import itertools as it
 import os.path
 import av
-import json
 import constants
 import source
 # On macOS, build av from source to make sure ffmpeg has required filters:
 # brew install ffmpeg pkg-config
 # pip install av --no-binary av
-from av.filter import Filter, Graph
+from av.filter import Graph
 
 import logging
 logging.basicConfig()

@@ -1,11 +1,9 @@
 import constants
-import os.path
 import av
 import numpy as np
 import json
 import threading
 import queue
-import sys
 import textwrap
 from PIL import Image, ImageFont, ImageDraw
 
@@ -73,9 +71,12 @@ def gen_frames(fname, stype):
         with av.open(fname, mode='r') as container:
             stream = getattr(container.streams, stype)[0]
             stream.thread_type = 'AUTO'
-            for packet in container.demux(stream):
-                for frame in packet.decode():
-                    yield frame
+            try:
+                for packet in container.demux(stream):
+                    for frame in packet.decode():
+                        yield frame
+            except Exception as e:
+                raise Exception(f'Error while processing {fname}') from e
 
 def rpt_frame_tuples(video_fname, audio_fname):
     while True:

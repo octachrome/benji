@@ -39,7 +39,7 @@ function findAnimations(dir) {
             if (file.stats.isDirectory()) {
                 promises.push(findAnimations(file.path));
             }
-            else if (/\.png$/.test(file.path)) {
+            else if (/\.png$/.test(file.path) && !file.path.includes('._')) {
                 if (currentSeg.length >= MAX_FRAMES) {
                     currentSeg = [];
                 }
@@ -73,14 +73,13 @@ function findAnimations(dir) {
 function findAudio(dir) {
     return statDir(dir).then(function (files) {
         var promises = [];
-        var audioFiles = [];
 
         for (var i = 0; i < files.length; i++) {
             var file = files[i];
             if (file.stats.isDirectory()) {
                 promises.push(findAudio(file.path));
             }
-            else if (/\.aac$/.test(file.path)) {
+            else if (/\.aac$/.test(file.path) && !file.path.includes('._')) {
                 promises.unshift({
                     name: path.basename(file.path, '.aac'),
                     audio: file.path
